@@ -1,0 +1,28 @@
+kind = "web"
+previewPath = "/"
+title = "SkillTwin — AI Digital Twin for Students"
+description = "A career-readiness dashboard that compares a student's current skills with a target job role and creates a personalized 30/60/90-day roadmap using OpenRouter AI."
+version = "1.0.0"
+id = "artifacts/skilltwin"
+router = "path"
+
+[[services]]
+name = "web"
+paths = [ "/" ]
+localPort = 25285
+
+[services.development]
+run = "pnpm --filter @workspace/skilltwin run dev"
+
+[services.production]
+build = [ "pnpm", "--filter", "@workspace/skilltwin", "run", "build" ]
+serve = "static"
+publicDir = "artifacts/skilltwin/dist/public"
+
+[[services.production.rewrites]]
+from = "/*"
+to = "/index.html"
+
+[services.env]
+PORT = "25285"
+BASE_PATH = "/"
