@@ -10,6 +10,8 @@ servers:
 tags:
   - name: health
     description: Health operations
+  - name: skilltwin
+    description: AI-powered student career readiness analysis
 paths:
   /healthz:
     get:
@@ -24,6 +26,43 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/HealthStatus"
+  /skilltwin/analyze:
+    post:
+      operationId: analyzeSkillTwin
+      tags: [skilltwin]
+      summary: Analyze readiness for a target role
+      description: Compares current skills to role requirements and creates a customized 30/60/90-day plan using OpenRouter.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/SkillTwinAnalysisInput"
+      responses:
+        "200":
+          description: Personalized readiness analysis
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SkillTwinAnalysis"
+        "400":
+          description: Invalid analysis request
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+        "503":
+          description: OpenRouter is not configured
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+        "502":
+          description: OpenRouter analysis failed
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
 components:
   schemas:
     HealthStatus:
@@ -33,4 +72,119 @@ components:
           type: string
       required:
         - status
+    SkillName:
+      type: string
+      enum: [Python, SQL, Excel, Statistics, Communication]
+    SkillLevelInput:
+      type: object
+      properties:
+        skill:
+          $ref: "#/components/schemas/SkillName"
+        current:
+          type: integer
+          minimum: 0
+          maximum: 100
+      required: [skill, current]
+    SkillTwinAnalysisInput:
+      type: object
+      properties:
+        targetRole:
+          type: string
+          minLength: 2
+          maxLength: 100
+        resumeText:
+          type: string
+          maxLength: 16000
+        skills:
+          type: array
+          items:
+            $ref: "#/components/schemas/SkillLevelInput"
+          minItems: 1
+          maxItems: 5
+      required: [targetRole, skills]
+    SkillGap:
+      type: object
+      properties:
+        skill:
+          $ref: "#/components/schemas/SkillName"
+        current:
+          type: integer
+          minimum: 0
+          maximum: 100
+        required:
+          type: integer
+          minimum: 0
+          maximum: 100
+        rationale:
+          type: string
+          maxLength: 240
+      required: [skill, current, required, rationale]
+    RoadmapAction:
+      type: object
+      properties:
+        title:
+          type: string
+          maxLength: 120
+        description:
+          type: string
+          maxLength: 320
+        skill:
+          $ref: "#/components/schemas/SkillName"
+        effort:
+          type: string
+          enum: [low, medium, high]
+      required: [title, description, skill, effort]
+    RoadmapPhase:
+      type: object
+      properties:
+        phase:
+          type: string
+          enum: ["30 days", "60 days", "90 days"]
+        title:
+          type: string
+          maxLength: 100
+        focus:
+          type: string
+          maxLength: 220
+        actions:
+          type: array
+          items:
+            $ref: "#/components/schemas/RoadmapAction"
+          minItems: 2
+          maxItems: 4
+      required: [phase, title, focus, actions]
+    SkillTwinAnalysis:
+      type: object
+      properties:
+        targetRole:
+          type: string
+        source:
+          type: string
+          enum: [ai, local]
+        readiness:
+          type: integer
+          minimum: 0
+          maximum: 100
+        summary:
+          type: string
+          maxLength: 320
+        gaps:
+          type: array
+          items:
+            $ref: "#/components/schemas/SkillGap"
+          minItems: 1
+          maxItems: 5
+        roadmap:
+          type: array
+          items:
+            $ref: "#/components/schemas/RoadmapPhase"
+          minItems: 3
+          maxItems: 3
+      required: [targetRole, source, readiness, summary, gaps, roadmap]
+    ApiError:
+      type: object
+      properties:
+        error:
+          type: string
+      required: [error]
 
