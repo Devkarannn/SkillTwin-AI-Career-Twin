@@ -1,522 +1,3406 @@
-import { useEffect, useRef, useState, type ChangeEvent, type CSSProperties } from 'react';
-import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
-import { ErrorBoundary } from '@/components/error-boundary';
-import { Toaster } from '@/components/ui/toaster';
-import { TooltipProvider } from '@/components/ui/tooltip';
-import NotFound from '@/pages/not-found';
-import {
-  useAnalyzeSkillTwin,
-  useEvaluateMockInterview,
-  useGenerateMockInterview,
-  useHealthCheck,
-} from '@workspace/api-client-react';
-import type {
-  MockInterviewEvaluation,
-  MockInterviewQuestions,
-  SkillTwinAnalysis,
-  SkillTwinAnalysisInput,
-} from '@workspace/api-client-react';
-import {
-  Activity, ArrowDownRight, ArrowLeft, ArrowRight, AudioLines, BookOpen, Check,
-  CircleAlert, Clock3, FileText, Gauge, Headphones, LoaderCircle, Mic,
-  Play, RotateCcw, Sparkles, Square, Target, Upload, Volume2, X,
-} from 'lucide-react';
-import { Link, Route, Switch, Router as WouterRouter, useLocation } from 'wouter';
+import React, { useRef, useState } from 'react';
 
-const queryClient = new QueryClient();
-const ROLE_SUGGESTIONS = [
-  'Software Engineer', 'Frontend Developer', 'Backend Developer', 'Data Analyst',
-  'Data Scientist', 'Machine Learning Engineer', 'Cybersecurity Analyst', 'IT Support Specialist',
-  'Product Manager', 'Project Manager', 'Business Analyst', 'Operations Manager',
-  'Management Consultant', 'Financial Analyst', 'Investment Banking Analyst', 'Accountant',
-  'UX Designer', 'Product Designer', 'Graphic Designer', 'Service Designer',
-  'Mechanical Engineer', 'Civil Engineer', 'Electrical Engineer', 'Robotics Engineer',
-  'Registered Nurse', 'Physical Therapist', 'Public Health Analyst', 'Clinical Research Coordinator',
-  'Marketing Specialist', 'Brand Strategist', 'Content Designer', 'Digital Marketing Manager',
-  'Electrician', 'Carpenter', 'HVAC Technician', 'Automotive Technician',
-];
-const storageKey = 'skilltwin-target-role';
-const getSavedRole = () => {
-  try { return window.localStorage.getItem(storageKey) || ''; } catch { return ''; }
-};
-
-function AppShell({ children }: { children: React.ReactNode }) {
-  const health = useHealthCheck();
-  const [location] = useLocation();
-  return (
-    <div className="app-shell">
-      <aside className="sidebar">
-        <Link href="/" className="brand-lockup" aria-label="SkillTwin home" data-testid="link-brand-home">
-          <span className="brand-mark"><Activity size={18} strokeWidth={2.4} /></span>
-          <span>skill<span className="brand-light">twin</span></span>
-        </Link>
-        <p className="side-label">YOUR CAREER WORKSPACE</p>
-        <nav className="side-nav" aria-label="Main navigation">
-          <Link href="/" className={`nav-link ${location === '/' ? 'active' : ''}`} data-testid="link-readiness">
-            <Gauge size={17} /><span>Readiness lab</span>{location === '/' && <i />}
-          </Link>
-          <Link href="/interview" className={`nav-link ${location === '/interview' ? 'active' : ''}`} data-testid="link-interview">
-            <AudioLines size={17} /><span>Mock interview</span>{location === '/interview' && <i />}
-          </Link>
-        </nav>
-        <div className="coach-note">
-          <span className="note-icon"><Sparkles size={16} /></span>
-          <p>A steady place to turn ambition into a plan.</p>
-          <span className="note-rule" />
-          <span className="note-caption">YOUR CAREER, IN YOUR HANDS</span>
-        </div>
-        <div className="sidebar-bottom">
-          <div className="health-indicator" role="status" data-testid="status-api-health">
-            <span className={`health-dot ${health.isError ? 'offline' : ''}`} />
-            <span>{health.isLoading ? 'Connecting to service' : health.isError ? 'Service unavailable' : 'Career service online'}</span>
-          </div>
-          <div className="sidebar-foot">SKILLTWIN <span>·</span> STUDENT CAREER COPILOT</div>
-        </div>
-      </aside>
-      <main className="main-area">
-        <header className="topbar">
-          <div className="crumb"><span>SkillTwin</span><span className="crumb-slash">/</span><strong>{location === '/interview' ? 'Mock interview' : 'Readiness lab'}</strong></div>
-          <div className="topbar-right">
-            <span className="live-status"><i className={`health-dot ${health.isError ? 'offline' : ''}`} />{health.isError ? 'OFFLINE' : 'CONNECTED'}</span>
-            <div className="user-avatar" aria-label="SkillTwin student workspace">ST</div>
-          </div>
-        </header>
-        <div className="content-wrap">{children}</div>
-      </main>
-    </div>
-  );
+interface SkillItem {
+  name: string;
+  category: string;
+  recommendedScore: number;
+  description: string;
 }
 
-function Home() {
-  const [targetRole, setTargetRole] = useState(() => getSavedRole() || 'Data Analyst');
-  const [resumeText, setResumeText] = useState('');
-  const [fileName, setFileName] = useState('');
-  const [formError, setFormError] = useState('');
-  const [analysis, setAnalysis] = useState<SkillTwinAnalysis | null>(null);
-  const [levels, setLevels] = useState<Record<string, number>>({});
-  const fileInput = useRef<HTMLInputElement>(null);
-  const analyze = useAnalyzeSkillTwin();
+interface ChatMessage {
+  sender: 'ai' | 'user';
+  text: string;
+}
 
-  useEffect(() => {
-    try { window.localStorage.setItem(storageKey, targetRole); } catch { /* storage is optional */ }
-  }, [targetRole]);
+interface AnswerAnalysis {
+  score: number;
+  rating: string;
+  strengths: string[];
+  improvements: string[];
+  feedback: string;
+  nextQuestion: string;
+}
 
-  const onFileChange = async (event: ChangeEvent<HTMLInputElement>) => {
-    const file = event.target.files?.[0];
-    if (!file) return;
-    setFormError('');
-    if (!/\.(txt|md|rtf|csv)$/i.test(file.name) && !file.type.startsWith('text/')) {
-      setFormError('Choose a text-based resume (.txt, .md, .rtf or .csv).');
-      event.target.value = '';
+interface InterviewAnswer {
+  question: string;
+  answer: string;
+  analysis: AnswerAnalysis;
+}
+
+interface ResumeAnalysis {
+  resumeScore: number;
+  matchedSkills: string[];
+  missingSkills: string[];
+  resumeStrengths: string[];
+  resumeImprovements: string[];
+  summary: string;
+}
+
+export default function App() {
+  // =========================================================
+  // MAIN STATE
+  // =========================================================
+
+  const [activeTab, setActiveTab] =
+    useState<'matrix' | 'assessor'>('matrix');
+
+  const [candidateName, setCandidateName] =
+    useState('');
+
+  const [targetRole, setTargetRole] =
+    useState('');
+
+  const [targetCompany, setTargetCompany] =
+    useState('');
+
+  const [activeSkills, setActiveSkills] =
+    useState<SkillItem[]>([]);
+
+  const [customRatings, setCustomRatings] =
+    useState<Record<string, number>>({});
+
+  const [analysis, setAnalysis] =
+    useState<any>(null);
+
+  // =========================================================
+  // RESUME STATE
+  // =========================================================
+
+  const [resumeText, setResumeText] =
+    useState('');
+
+  const [resumeAnalysis, setResumeAnalysis] =
+    useState<ResumeAnalysis | null>(null);
+
+  const [isResumeAnalyzing, setIsResumeAnalyzing] =
+    useState(false);
+
+  // =========================================================
+  // INTERVIEW STATE
+  // =========================================================
+
+  const [chatLog, setChatLog] =
+    useState<ChatMessage[]>([]);
+
+  const [userInput, setUserInput] =
+    useState('');
+
+  const [isSpeaking, setIsSpeaking] =
+    useState(false);
+
+  const [isRecording, setIsRecording] =
+    useState(false);
+
+  const [interviewStarted, setInterviewStarted] =
+    useState(false);
+
+  const [isAnalyzing, setIsAnalyzing] =
+    useState(false);
+
+  const [currentQuestion, setCurrentQuestion] =
+    useState('');
+
+  const [lastAnswerAnalysis, setLastAnswerAnalysis] =
+    useState<AnswerAnalysis | null>(null);
+
+  const [interviewAnswers, setInterviewAnswers] =
+    useState<InterviewAnswer[]>([]);
+
+  // =========================================================
+  // SPEECH RECOGNITION REFS
+  // =========================================================
+
+  const recognitionRef =
+    useRef<any>(null);
+
+  const microphoneStreamRef =
+    useRef<MediaStream | null>(null);
+
+  const shouldKeepRecordingRef =
+    useRef(false);
+
+  const transcriptRef =
+    useRef('');
+
+  const restartTimeoutRef =
+    useRef<ReturnType<typeof setTimeout> | null>(
+      null
+    );
+
+  // =========================================================
+  // ROLE KEYWORDS
+  // =========================================================
+
+  const getRoleKeywords = (
+    role: string
+  ): string[] => {
+    const lower = role.toLowerCase();
+
+    const keywordMap: Record<string, string[]> = {
+      software: [
+        'coding',
+        'programming',
+        'javascript',
+        'typescript',
+        'react',
+        'debugging',
+        'testing',
+        'architecture',
+        'api',
+        'database',
+        'deployment',
+        'git',
+        'security'
+      ],
+
+      developer: [
+        'coding',
+        'programming',
+        'javascript',
+        'typescript',
+        'react',
+        'debugging',
+        'testing',
+        'architecture',
+        'api',
+        'database',
+        'deployment',
+        'git'
+      ],
+
+      engineer: [
+        'design',
+        'analysis',
+        'testing',
+        'safety',
+        'quality',
+        'problem',
+        'solution',
+        'technical',
+        'engineering'
+      ],
+
+      accountant: [
+        'financial',
+        'accounting',
+        'audit',
+        'tax',
+        'compliance',
+        'reconciliation',
+        'reporting',
+        'excel'
+      ],
+
+      marketing: [
+        'campaign',
+        'customer',
+        'brand',
+        'analytics',
+        'content',
+        'conversion',
+        'audience',
+        'strategy',
+        'social media'
+      ],
+
+      manager: [
+        'leadership',
+        'team',
+        'planning',
+        'deadline',
+        'communication',
+        'conflict',
+        'performance',
+        'decision'
+      ],
+
+      designer: [
+        'design',
+        'user',
+        'research',
+        'prototype',
+        'visual',
+        'feedback',
+        'usability',
+        'iteration',
+        'figma'
+      ],
+
+      doctor: [
+        'patient',
+        'diagnosis',
+        'treatment',
+        'clinical',
+        'medical',
+        'safety',
+        'history',
+        'evidence'
+      ],
+
+      lawyer: [
+        'client',
+        'case',
+        'legal',
+        'evidence',
+        'contract',
+        'research',
+        'court',
+        'argument'
+      ],
+
+      teacher: [
+        'student',
+        'lesson',
+        'learning',
+        'assessment',
+        'classroom',
+        'feedback',
+        'curriculum',
+        'communication'
+      ],
+
+      data: [
+        'python',
+        'sql',
+        'statistics',
+        'analytics',
+        'machine learning',
+        'data analysis',
+        'pandas',
+        'numpy',
+        'visualization'
+      ],
+
+      analyst: [
+        'analysis',
+        'excel',
+        'sql',
+        'data',
+        'analytics',
+        'reporting',
+        'dashboard',
+        'statistics'
+      ]
+    };
+
+    for (const key of Object.keys(keywordMap)) {
+      if (lower.includes(key)) {
+        return keywordMap[key];
+      }
+    }
+
+    return [
+      'problem',
+      'solution',
+      'experience',
+      'process',
+      'result',
+      'communication',
+      'quality',
+      'planning',
+      'leadership',
+      'team'
+    ];
+  };
+
+  // =========================================================
+  // ROLE INPUT
+  // =========================================================
+
+  const handleRoleInputChange = (
+    roleInput: string
+  ) => {
+    setTargetRole(roleInput);
+
+    const cleanTitle =
+      roleInput.trim();
+
+    if (!cleanTitle) {
+      setActiveSkills([]);
+      setCustomRatings({});
+      setAnalysis(null);
+      setResumeAnalysis(null);
       return;
     }
-    if (file.size > 2 * 1024 * 1024) {
-      setFormError('This file is over 2 MB. Paste a shorter version instead.');
-      event.target.value = '';
+
+    const skillsToLoad: SkillItem[] = [
+      {
+        name:
+          `${cleanTitle} Core Theory & Concepts`,
+        category:
+          'Domain Theory',
+        recommendedScore: 85,
+        description:
+          'Foundational domain knowledge'
+      },
+      {
+        name:
+          `${cleanTitle} Tools & Software`,
+        category:
+          'Tools & Methods',
+        recommendedScore: 80,
+        description:
+          'Standard industry toolsets'
+      },
+      {
+        name:
+          'Execution & Workflow Quality',
+        category:
+          'Core Competency',
+        recommendedScore: 85,
+        description:
+          'Hands-on practical output'
+      },
+      {
+        name:
+          'Standards & Best Practices',
+        category:
+          'Domain Theory',
+        recommendedScore: 75,
+        description:
+          'Industry rules & compliance'
+      },
+      {
+        name:
+          'Client & Stakeholder Communication',
+        category:
+          'Execution & Strategy',
+        recommendedScore: 80,
+        description:
+          'Presentation & collaboration'
+      }
+    ];
+
+    setActiveSkills(skillsToLoad);
+
+    const ratings: Record<string, number> = {};
+
+    skillsToLoad.forEach((skill) => {
+      ratings[skill.name] = 50;
+    });
+
+    setCustomRatings(ratings);
+    setAnalysis(null);
+    setResumeAnalysis(null);
+  };
+
+  // =========================================================
+  // SLIDER
+  // =========================================================
+
+  const handleSliderChange = (
+    skillName: string,
+    value: number
+  ) => {
+    setCustomRatings((previous) => ({
+      ...previous,
+      [skillName]: value
+    }));
+  };
+
+  // =========================================================
+  // RESUME ANALYSIS
+  // =========================================================
+
+  const analyzeResume = () => {
+    if (!resumeText.trim()) {
+      alert(
+        'Please paste your resume first. This is optional.'
+      );
       return;
     }
-    try {
-      setResumeText((await file.text()).slice(0, 16000));
-      setFileName(file.name);
-    } catch { setFormError('We could not read that file. Paste your resume text instead.'); }
-    event.target.value = '';
+
+    if (!targetRole.trim()) {
+      alert(
+        'Please enter your target role before analyzing your resume.'
+      );
+      return;
+    }
+
+    setIsResumeAnalyzing(true);
+
+    setTimeout(() => {
+      const resume =
+        resumeText.toLowerCase();
+
+      const keywords =
+        getRoleKeywords(targetRole);
+
+      const matchedSkills =
+        keywords.filter((keyword) =>
+          resume.includes(
+            keyword.toLowerCase()
+          )
+        );
+
+      const missingSkills =
+        keywords.filter(
+          (keyword) =>
+            !resume.includes(
+              keyword.toLowerCase()
+            )
+        );
+
+      const wordCount =
+        resumeText
+          .trim()
+          .split(/\s+/)
+          .filter(Boolean)
+          .length;
+
+      let resumeScore = 0;
+
+      // Skill relevance
+      const skillScore =
+        Math.min(
+          40,
+          Math.round(
+            (matchedSkills.length /
+              Math.max(
+                keywords.length,
+                1
+              )) *
+              40
+          )
+        );
+
+      resumeScore += skillScore;
+
+      // Experience/detail
+      if (wordCount >= 500) {
+        resumeScore += 25;
+      } else if (wordCount >= 300) {
+        resumeScore += 20;
+      } else if (wordCount >= 150) {
+        resumeScore += 15;
+      } else {
+        resumeScore += 8;
+      }
+
+      // Achievement/result signals
+      const resultWords = [
+        'achieved',
+        'increased',
+        'reduced',
+        'improved',
+        'saved',
+        'delivered',
+        'built',
+        'developed',
+        'created',
+        'managed',
+        'led',
+        '%'
+      ];
+
+      const resultMatches =
+        resultWords.filter(
+          (word) =>
+            resume.includes(word)
+        ).length;
+
+      resumeScore += Math.min(
+        20,
+        resultMatches * 2
+      );
+
+      // Education/project/experience
+      const structureWords = [
+        'experience',
+        'education',
+        'project',
+        'projects',
+        'skills',
+        'certification',
+        'internship'
+      ];
+
+      const structureMatches =
+        structureWords.filter(
+          (word) =>
+            resume.includes(word)
+        ).length;
+
+      resumeScore += Math.min(
+        15,
+        structureMatches * 2
+      );
+
+      resumeScore = Math.min(
+        100,
+        resumeScore
+      );
+
+      const resumeStrengths: string[] = [];
+
+      if (matchedSkills.length >= 3) {
+        resumeStrengths.push(
+          `Your resume contains several skills relevant to ${targetRole}.`
+        );
+      }
+
+      if (resultMatches >= 4) {
+        resumeStrengths.push(
+          'Your resume contains achievement and impact-oriented language.'
+        );
+      }
+
+      if (wordCount >= 300) {
+        resumeStrengths.push(
+          'Your resume provides enough detail for meaningful role matching.'
+        );
+      }
+
+      if (structureMatches >= 4) {
+        resumeStrengths.push(
+          'Your resume appears to contain multiple important professional sections.'
+        );
+      }
+
+      if (!resumeStrengths.length) {
+        resumeStrengths.push(
+          'Your resume provides a starting point for role analysis.'
+        );
+      }
+
+      const resumeImprovements: string[] = [];
+
+      if (missingSkills.length > 0) {
+        resumeImprovements.push(
+          `Consider highlighting relevant skills such as ${missingSkills
+            .slice(0, 4)
+            .join(', ')} if you genuinely have those skills.`
+        );
+      }
+
+      if (resultMatches < 4) {
+        resumeImprovements.push(
+          'Add measurable achievements, outcomes, percentages, time saved, revenue impact, or other concrete results where truthful.'
+        );
+      }
+
+      if (wordCount < 200) {
+        resumeImprovements.push(
+          'Your resume may need more detail around projects, experience, responsibilities, and achievements.'
+        );
+      }
+
+      if (!resumeImprovements.length) {
+        resumeImprovements.push(
+          'Your resume is well aligned. Focus on making achievements even more specific and measurable.'
+        );
+      }
+
+      let summary = '';
+
+      if (resumeScore >= 80) {
+        summary =
+          `Your resume appears strongly aligned with the ${targetRole} role. Keep emphasizing your strongest technical/professional achievements.`;
+      } else if (resumeScore >= 60) {
+        summary =
+          `Your resume has a reasonable foundation for ${targetRole}, but there are several areas where the alignment can be improved.`;
+      } else {
+        summary =
+          `Your resume currently shows limited evidence for ${targetRole}. Strengthen the relevant skills, projects, achievements, and experience sections.`;
+      }
+
+      const result: ResumeAnalysis = {
+        resumeScore,
+        matchedSkills,
+        missingSkills,
+        resumeStrengths,
+        resumeImprovements,
+        summary
+      };
+
+      setResumeAnalysis(result);
+      setIsResumeAnalyzing(false);
+    }, 500);
   };
 
-  const submitAnalysis = () => {
-    const role = targetRole.trim();
-    if (role.length < 2) { setFormError('Add a target role with at least two characters.'); return; }
-    setFormError('');
-    const data: SkillTwinAnalysisInput = {
-      targetRole: role,
-      ...(resumeText.trim() ? { resumeText: resumeText.trim() } : {}),
-      ...(analysis && Object.keys(levels).length
-        ? { skillLevels: analysis.gaps.map((gap) => ({ skill: gap.skill, current: levels[gap.skill] ?? gap.current })) }
-        : {}),
-    };
-    analyze.mutate({ data }, {
-      onSuccess: (result) => {
-        setAnalysis(result);
-        setLevels(Object.fromEntries(result.gaps.map((gap) => [gap.skill, gap.current])));
-      },
+  // =========================================================
+  // SKILL GAP CALCULATION
+  // =========================================================
+
+  const calculateGaps = () => {
+    if (!activeSkills.length) {
+      return;
+    }
+
+    const list = activeSkills.map(
+      (skill) => {
+        const current =
+          customRatings[skill.name] ??
+          50;
+
+        const target =
+          skill.recommendedScore;
+
+        return {
+          ...skill,
+          current,
+          target,
+          gap: Math.max(
+            0,
+            target - current
+          )
+        };
+      }
+    );
+
+    const average = Math.round(
+      list.reduce(
+        (sum, item) =>
+          sum + item.current,
+        0
+      ) / list.length
+    );
+
+    const deficientSkills =
+      list
+        .filter(
+          (item) =>
+            item.gap > 0
+        )
+        .map(
+          (item) =>
+            item.name
+        );
+
+    let suggestion = '';
+
+    if (average >= 80) {
+      suggestion =
+        `Excellent positioning for ${targetRole}. Focus on advanced case studies, leadership examples, measurable business impact, and executive-level communication.`;
+    } else if (average >= 60) {
+      suggestion =
+        `You have a solid foundation for ${targetRole}, but you should strengthen ${deficientSkills
+          .slice(0, 2)
+          .join(' and ')}. Build practical projects and practice structured interview answers.`;
+    } else {
+      suggestion =
+        `Your current profile has significant gaps for ${targetRole}. Focus first on foundational knowledge, practical exercises, tools, and repeated mock interviews before targeting highly competitive positions.`;
+    }
+
+    setAnalysis({
+      score: average,
+      skills: list,
+      verdict:
+        average >= 75
+          ? 'Industry Ready'
+          : average >= 55
+          ? 'Needs Upskilling'
+          : 'Critical Deficits',
+      deficientSkills,
+      suggestionParagraph:
+        suggestion
     });
   };
-  const reset = () => { setAnalysis(null); analyze.reset(); };
-  const apiError = analyze.error as (Error & { error?: string; response?: { data?: { error?: string } } }) | null;
-  const analysisError = apiError?.response?.data?.error || apiError?.error || apiError?.message || 'Please try again in a moment.';
 
-  return (
-    <div className="page">
-      <section className="intro-row">
-        <div>
-          <div className="eyebrow"><span className="eyebrow-line" />A CAREER COACH, BUILT AROUND YOU</div>
-          <h1>Make your next<br /><em>move</em> make sense.</h1>
-          <p className="intro-copy">Bring the role you’re curious about. Leave with a clear-eyed view of what you already bring—and what to build next.</p>
-        </div>
-        <div className="intro-stamp"><span className="stamp-caption">A PLAN THAT<br />STARTS WHERE<br />YOU ARE</span><span className="stamp-orbit"><ArrowDownRight size={21} /></span></div>
-      </section>
+  // =========================================================
+  // TEXT TO SPEECH
+  // =========================================================
 
-      <div className="workspace-grid">
-        <section className="setup-panel panel">
-          <div className="panel-heading">
-            <span className="heading-index">01</span>
-            <div><div className="section-kicker">START WITH YOUR DIRECTION</div><h2>Tell us what you’re aiming for</h2></div>
-            {analysis && <button className="text-action" onClick={reset} data-testid="button-edit-profile"><RotateCcw size={14} /> Edit inputs</button>}
-          </div>
-          <div className="form-section">
-            <label className="field-label" htmlFor="target-role">Target role <span className="field-sub">ANY ROLE, YOUR WORDS</span></label>
-            <input id="target-role" className="text-input" list="role-suggestions" value={targetRole} maxLength={100}
-              onChange={(event) => { setTargetRole(event.target.value); if (analysis) setAnalysis(null); }}
-              placeholder="For example, climate data analyst" data-testid="input-target-role" />
-            <datalist id="role-suggestions">{ROLE_SUGGESTIONS.map((role) => <option key={role} value={role} />)}</datalist>
-            <p className="field-hint">Start typing or enter a role that’s uniquely yours.</p>
-          </div>
-          <div className="form-section resume-section">
-            <div className="label-row"><label className="field-label" htmlFor="resume-text">Resume <span className="optional-label">OPTIONAL, MORE CONTEXT</span></label><span className="char-count">{resumeText.length.toLocaleString()} / 16,000</span></div>
-            <textarea id="resume-text" value={resumeText} onChange={(event) => { setResumeText(event.target.value.slice(0, 16000)); setFileName(''); }}
-              placeholder="Paste resume text, project experience, or the work you’re proud of." data-testid="input-resume-text" />
-            <div className="resume-tools">
-              <button type="button" className="upload-button" onClick={() => fileInput.current?.click()} data-testid="button-upload-resume"><Upload size={14} /> Upload text file</button>
-              <input ref={fileInput} type="file" accept=".txt,.md,.rtf,.csv,text/*" onChange={onFileChange} hidden data-testid="input-resume-file" />
-              <span className="file-hint">{fileName ? <><FileText size={13} /> {fileName}<button className="remove-file" onClick={() => { setFileName(''); setResumeText(''); }} aria-label="Remove uploaded resume" data-testid="button-remove-resume"><X size={13} /></button></> : 'TXT, MD, RTF or CSV · up to 2 MB'}</span>
-            </div>
-          </div>
-          {(formError || analyze.isError) && <div className="error-callout" role="alert" data-testid="status-analysis-error"><CircleAlert size={16} /><span>{formError || analysisError}</span><button onClick={() => { setFormError(''); analyze.reset(); }} aria-label="Dismiss error" data-testid="button-dismiss-error"><X size={15} /></button></div>}
-          <button className="analyze-button" onClick={submitAnalysis} disabled={analyze.isPending} data-testid="button-analyze">
-            {analyze.isPending ? <><LoaderCircle className="spin" size={17} /> Building your map</> : <><Sparkles size={16} /> Map my next steps <ArrowRight size={17} /></>}
-          </button>
-          <p className="privacy-note"><span /> Your resume helps personalize this plan; it is not shown publicly.</p>
-        </section>
+  const speakText = (
+    text: string,
+    onComplete?: () => void
+  ) => {
+    if (
+      !('speechSynthesis' in window)
+    ) {
+      onComplete?.();
+      return;
+    }
 
-        <section className="results-column">
-          {analyze.isPending ? <LoadingAnalysis role={targetRole} /> : analysis ? <AnalysisResults analysis={analysis} levels={levels} onLevelChange={(skill, value) => setLevels((all) => ({ ...all, [skill]: value }))} onRerun={submitAnalysis} busy={analyze.isPending} /> : <EmptyAnalysis />}
-        </section>
-      </div>
-      <footer className="page-footer"><span>Progress is not a straight line.</span><span>SkillTwin <i>—</i> A little clearer, every step.</span></footer>
-    </div>
-  );
-}
+    window.speechSynthesis.cancel();
 
-function LoadingAnalysis({ role }: { role: string }) {
-  return <div className="loading-panel panel" role="status" data-testid="status-analyzing">
-    <div className="loading-rings"><span /><span /><span /><Sparkles size={20} /></div>
-    <div className="eyebrow">PUTTING YOUR PROFILE IN CONTEXT</div><h2>Connecting the dots.</h2>
-    <p>Looking at the work behind “{role}” and finding a useful next step.</p>
-    <div className="loading-steps"><span className="step-done"><Check size={13} /> Reading your inputs</span><span className="step-active"><i /> Comparing role skills</span><span><i /> Shaping your 90-day route</span></div>
-  </div>;
-}
+    const utterance =
+      new SpeechSynthesisUtterance(
+        text
+      );
 
-function EmptyAnalysis() {
-  return <div className="empty-results panel" data-testid="status-idle">
-    <div className="empty-visual"><div className="empty-orbit orbit-one" /><div className="empty-orbit orbit-two" /><div className="empty-core"><Target size={26} /></div><span className="orbit-node node-a" /><span className="orbit-node node-b" /><span className="orbit-node node-c" /></div>
-    <div className="eyebrow">A PERSONAL READINESS MAP</div>
-    <h2>Start with where<br />you are.</h2>
-    <p>Your strengths count. The gaps are just a direction—not a verdict.</p>
-    <div className="empty-divider" />
-    <div className="empty-foot"><span><b>01</b> Name your direction</span><ArrowRight size={14} /><span><b>02</b> See what connects</span><ArrowRight size={14} /><span><b>03</b> Choose a next step</span></div>
-  </div>;
-}
+    utterance.rate = 0.95;
+    utterance.pitch = 1;
+    utterance.volume = 1;
 
-function AnalysisResults({ analysis, levels, onLevelChange, onRerun, busy }: {
-  analysis: SkillTwinAnalysis; levels: Record<string, number>; onLevelChange: (skill: string, value: number) => void; onRerun: () => void; busy: boolean;
-}) {
-  return <div className="analysis-stack" data-testid="status-analysis-results">
-    {analysis.source === 'local' && <div className="local-estimate-notice" role="status" data-testid="status-local-estimate"><CircleAlert size={15} /><span><strong>Local estimate</strong> — this is a heuristic starting point, not an AI-generated assessment.</span></div>}
-    <section className="score-card panel">
-      <div className="score-topline"><span className="eyebrow"><span className="eyebrow-line" />READINESS SNAPSHOT</span><button className="icon-button" title="Run analysis again" aria-label="Run analysis again" onClick={onRerun} disabled={busy} data-testid="button-rerun-analysis"><RotateCcw size={15} /></button></div>
-      <div className="score-layout">
-        <div className="score-ring" style={{ '--score': `${analysis.readiness * 3.6}deg` } as CSSProperties}><div><strong>{analysis.readiness}</strong><span>READINESS / 100</span></div></div>
-        <div className="score-copy"><div className="role-chip"><i />{analysis.targetRole}</div><h2>There’s a path<br />from <em>here.</em></h2><p>{analysis.summary}</p><div className="match-line"><span>ROLE MATCH</span><strong>{analysis.matchScore}<small> / 100</small></strong></div></div>
-      </div>
-      <div className="score-bottom"><span><i /> SNAPSHOT READY</span><span>{analysis.source === 'ai' ? 'AI-ASSISTED ANALYSIS' : 'LOCAL ESTIMATE'}</span></div>
-    </section>
-    <div className="two-insights">
-      <InsightCard title="What you already bring" kind="strength" items={analysis.strengths} testId="list-strengths" />
-      <InsightCard title="Where to focus next" kind="focus" items={analysis.shortfalls} testId="list-shortfalls" />
-    </div>
-    <section className="gaps-card panel">
-      <div className="section-head"><div><div className="section-kicker">THE DISTANCE, MADE VISIBLE</div><h2>Your skill alignment</h2></div><span className="bar-legend"><i className="legend-current" /> YOU <i className="legend-required" /> ROLE</span></div>
-      <p className="section-intro">Tune your current levels to your own read. Then rerun to reshape the plan.</p>
-      <div className="gap-list">{analysis.gaps.map((gap, index) => {
-        const current = levels[gap.skill] ?? gap.current;
-        return <div className="gap-item" key={gap.skill} data-testid={`row-skill-gap-${index}`}>
-          <div className="gap-meta"><strong>{gap.skill}</strong><span>{current}% <i>now</i><b>·</b> {gap.required}% <i>role</i></span></div>
-          <div className="gap-track"><span className="required-track" style={{ width: `${gap.required}%` }} /><span className={`current-track tone-${index % 4}`} style={{ width: `${current}%` }} /></div>
-          <div className="gap-detail"><p>{gap.rationale}</p>{gap.missingTools?.length ? <div className="tool-tags" aria-label={`Suggested tools for ${gap.skill}`}>{gap.missingTools.map((tool) => <span key={tool}>{tool}</span>)}</div> : null}</div>
-          <label className="gap-slider-label" htmlFor={`level-${index}`}>Adjust your current level <span>{current}%</span></label>
-          <input id={`level-${index}`} type="range" min="0" max="100" value={current} onChange={(event) => onLevelChange(gap.skill, Number(event.target.value))} aria-label={`${gap.skill} current skill level`} data-testid={`input-level-${index}`} />
-        </div>;
-      })}</div>
-      <button className="secondary-button" onClick={onRerun} disabled={busy} data-testid="button-rerun-levels">{busy ? 'Updating your map…' : <><RotateCcw size={14} /> Recalculate with these levels</>}</button>
-    </section>
-    <section className="roadmap-section">
-      <div className="roadmap-heading"><div><div className="section-kicker">A ROUTE, NOT A RIGID RULEBOOK</div><h2>Your next 90 days</h2></div><span className="roadmap-mark"><Clock3 size={15} /> 3 PHASES</span></div>
-      <div className="roadmap-list">{analysis.roadmap.map((phase, index) => <article className="phase-card panel" key={phase.phase} data-testid={`card-roadmap-${index}`}>
-        <div className="phase-marker"><span>0{index + 1}</span><i /></div>
-        <div className="phase-main">
-          <div className="phase-top"><span className={`phase-pill phase-${index}`}>{phase.phase}</span><h3>{phase.title}</h3></div>
-          <p className="phase-focus">{phase.focus}</p>
-          <div className="milestone-list">{phase.weeklyMilestones.map((milestone, mi) => <div className="milestone-row" key={`${milestone.week}-${mi}`} data-testid={`milestone-${index}-${mi}`}><span className="milestone-week">{milestone.week}</span><div><strong>{milestone.goal}</strong><p>Make: {milestone.deliverable}</p></div></div>)}</div>
-          <div className="project-box"><span className="mini-label">PORTFOLIO PROOF</span><p>{phase.portfolioProject}</p></div>
-          <div className="roadmap-subhead"><BookOpen size={14} /> LEARN WITH THESE RESOURCES</div>
-          <div className="resource-list">{phase.resources.map((resource, ri) => <div className="resource-row" key={`${resource.title}-${ri}`} data-testid={`resource-${index}-${ri}`}><div><strong>{resource.title}</strong><span>{resource.provider} · {resource.free ? 'Free' : 'Paid'}</span><p>{resource.reason}</p></div><span className={resource.free ? 'free-tag' : 'paid-tag'}>{resource.free ? 'FREE' : 'COURSE'}</span></div>)}</div>
-          <div className="roadmap-subhead resume-tip-head"><FileText size={14} /> RESUME LANGUAGE TO TRY</div>
-          <ul className="resume-tip-list">{phase.resumeTips.map((tip, ti) => <li key={ti}>{tip}</li>)}</ul>
-        </div>
-      </article>)}</div>
-    </section>
-    <InterviewBridge role={analysis.targetRole} />
-  </div>;
-}
-
-function InsightCard({ title, kind, items, testId }: { title: string; kind: 'strength' | 'focus'; items: string[]; testId: string }) {
-  return <section className={`insight-card ${kind}`} data-testid={testId}><span className="insight-mark">{kind === 'strength' ? <Check size={15} /> : <ArrowRight size={15} />}</span><h3>{title}</h3><ul>{items.map((item, index) => <li key={index}>{item}</li>)}</ul></section>;
-}
-
-function InterviewBridge({ role }: { role: string }) {
-  return <Link href="/interview" className="interview-bridge" onClick={() => { try { window.localStorage.setItem(storageKey, role); } catch { /* optional */ } }} data-testid="link-practice-interview">
-    <span className="bridge-icon"><AudioLines size={19} /></span><span><small>READY TO TRY IT OUT LOUD?</small><strong>Practice a mock interview for {role}</strong></span><ArrowRight size={18} />
-  </Link>;
-}
-
-interface RecognitionAlternative extends Event {
-  results: ArrayLike<{ 0: { transcript: string }; isFinal: boolean }>;
-  resultIndex: number;
-}
-interface Recognition {
-  continuous: boolean; interimResults: boolean; lang: string;
-  onresult: ((event: RecognitionAlternative) => void) | null;
-  onerror: ((event: { error: string }) => void) | null;
-  onend: (() => void) | null;
-  start: () => void; stop: () => void; abort: () => void;
-}
-type SpeechWindow = Window & { SpeechRecognition?: new () => Recognition; webkitSpeechRecognition?: new () => Recognition };
-
-function Interview() {
-  const [role, setRole] = useState(() => getSavedRole() || '');
-  const [company, setCompany] = useState('');
-  const [questions, setQuestions] = useState<MockInterviewQuestions | null>(null);
-  const [evaluation, setEvaluation] = useState<MockInterviewEvaluation | null>(null);
-  const [answers, setAnswers] = useState<Record<number, string>>({});
-  const [current, setCurrent] = useState(0);
-  const [draft, setDraft] = useState('');
-  const [speechText, setSpeechText] = useState('');
-  const [speechState, setSpeechState] = useState<'idle' | 'speaking' | 'listening'>('idle');
-  const [speechError, setSpeechError] = useState('');
-  const [validation, setValidation] = useState('');
-  const recognitionRef = useRef<Recognition | null>(null);
-  const synthRef = useRef<SpeechSynthesisUtterance | null>(null);
-  const speechTextRef = useRef('');
-  const generate = useGenerateMockInterview();
-  const evaluate = useEvaluateMockInterview();
-
-  useEffect(() => {
-    try { if (role.trim()) window.localStorage.setItem(storageKey, role); } catch { /* optional */ }
-  }, [role]);
-  useEffect(() => {
-    return () => {
-      recognitionRef.current?.abort();
-      if (typeof window !== 'undefined' && window.speechSynthesis) window.speechSynthesis.cancel();
+    utterance.onstart = () => {
+      setIsSpeaking(true);
     };
-  }, []);
-  useEffect(() => {
-    setDraft(answers[current] || '');
-    setSpeechText('');
-    speechTextRef.current = '';
-    setSpeechError('');
-  }, [current, answers]);
 
-  const stopSpeech = () => {
-    recognitionRef.current?.stop();
-    recognitionRef.current = null;
-    if (typeof window !== 'undefined') window.speechSynthesis?.cancel();
-    setSpeechState('idle');
+    utterance.onend = () => {
+      setIsSpeaking(false);
+      onComplete?.();
+    };
+
+    utterance.onerror = () => {
+      setIsSpeaking(false);
+      onComplete?.();
+    };
+
+    window.speechSynthesis.speak(
+      utterance
+    );
   };
-  const startInterview = () => {
-    if (role.trim().length < 2) { setValidation('Enter a target role with at least two characters.'); return; }
-    stopSpeech();
-    setValidation('');
-    generate.mutate({ data: { targetRole: role.trim(), ...(company.trim() ? { targetCompany: company.trim() } : {}) } }, {
-      onSuccess: (result) => {
-        setQuestions(result);
-        setEvaluation(null);
-        setAnswers({});
-        setCurrent(0);
-        setDraft('');
-      },
-    });
+
+  // =========================================================
+  // ANSWER ANALYSIS
+  // =========================================================
+
+  const analyzeAnswer = (
+    question: string,
+    answer: string
+  ): AnswerAnalysis => {
+    const cleanAnswer =
+      answer.trim();
+
+    const lowerAnswer =
+      cleanAnswer.toLowerCase();
+
+    const words =
+      cleanAnswer
+        .split(/\s+/)
+        .filter(Boolean);
+
+    const wordCount =
+      words.length;
+
+    const role =
+      targetRole ||
+      'professional';
+
+    const keywords =
+      getRoleKeywords(role);
+
+    const matchedKeywords =
+      keywords.filter(
+        (keyword) =>
+          lowerAnswer.includes(
+            keyword.toLowerCase()
+          )
+      );
+
+    // DETAIL
+    let detailScore = 0;
+
+    if (wordCount >= 80) {
+      detailScore = 25;
+    } else if (wordCount >= 50) {
+      detailScore = 20;
+    } else if (wordCount >= 30) {
+      detailScore = 15;
+    } else if (wordCount >= 15) {
+      detailScore = 10;
+    } else {
+      detailScore = 5;
+    }
+
+    // RELEVANCE
+    const relevanceScore =
+      Math.min(
+        25,
+        10 +
+          matchedKeywords.length * 3
+      );
+
+    // STRUCTURE
+    const structureWords = [
+      'first',
+      'then',
+      'finally',
+      'because',
+      'therefore',
+      'however',
+      'for example',
+      'result',
+      'outcome',
+      'situation',
+      'task',
+      'action'
+    ];
+
+    const structureMatches =
+      structureWords.filter(
+        (word) =>
+          lowerAnswer.includes(word)
+      ).length;
+
+    const structureScore =
+      Math.min(
+        20,
+        8 +
+          structureMatches * 2
+      );
+
+    // CLARITY
+    const sentenceCount =
+      cleanAnswer
+        .split(/[.!?]+/)
+        .filter(
+          (sentence) =>
+            sentence.trim()
+        ).length;
+
+    let clarityScore = 10;
+
+    if (
+      sentenceCount >= 3 &&
+      wordCount >= 40
+    ) {
+      clarityScore = 15;
+    } else if (
+      sentenceCount >= 2
+    ) {
+      clarityScore = 12;
+    }
+
+    // RESULT
+    const resultWords = [
+      'achieved',
+      'improved',
+      'increased',
+      'reduced',
+      'saved',
+      'delivered',
+      'completed',
+      'result',
+      'outcome',
+      '%'
+    ];
+
+    const hasResult =
+      resultWords.some(
+        (word) =>
+          lowerAnswer.includes(word)
+      );
+
+    const resultScore =
+      hasResult ? 15 : 5;
+
+    let score =
+      detailScore +
+      relevanceScore +
+      structureScore +
+      clarityScore +
+      resultScore;
+
+    score = Math.max(
+      0,
+      Math.min(100, score)
+    );
+
+    let rating = '';
+
+    if (score >= 85) {
+      rating = 'Excellent';
+    } else if (score >= 70) {
+      rating = 'Strong';
+    } else if (score >= 55) {
+      rating = 'Average';
+    } else if (score >= 40) {
+      rating =
+        'Needs Improvement';
+    } else {
+      rating = 'Weak';
+    }
+
+    // STRENGTHS
+    const strengths: string[] = [];
+
+    if (wordCount >= 50) {
+      strengths.push(
+        'You provided a reasonably detailed answer.'
+      );
+    }
+
+    if (
+      matchedKeywords.length >= 2
+    ) {
+      strengths.push(
+        `Your answer demonstrated ${role}-relevant knowledge.`
+      );
+    }
+
+    if (
+      structureMatches >= 2
+    ) {
+      strengths.push(
+        'Your answer had a logical structure.'
+      );
+    }
+
+    if (hasResult) {
+      strengths.push(
+        'You included an outcome or measurable result.'
+      );
+    }
+
+    if (sentenceCount >= 3) {
+      strengths.push(
+        'Your response contained multiple connected ideas.'
+      );
+    }
+
+    if (!strengths.length) {
+      strengths.push(
+        'You responded directly to the interview question.'
+      );
+    }
+
+    // IMPROVEMENTS
+    const improvements: string[] =
+      [];
+
+    if (wordCount < 40) {
+      improvements.push(
+        'Give a more detailed answer. Aim for roughly 45–90 seconds when speaking.'
+      );
+    }
+
+    if (
+      matchedKeywords.length === 0
+    ) {
+      improvements.push(
+        `Connect your answer more directly to ${role}-specific responsibilities and terminology.`
+      );
+    }
+
+    if (
+      structureMatches < 2
+    ) {
+      improvements.push(
+        'Use a clear structure: Situation → Action → Result.'
+      );
+    }
+
+    if (!hasResult) {
+      improvements.push(
+        'Include a concrete outcome, metric, achievement, or business impact.'
+      );
+    }
+
+    if (sentenceCount < 2) {
+      improvements.push(
+        'Expand your explanation instead of giving only a short statement.'
+      );
+    }
+
+    if (!improvements.length) {
+      improvements.push(
+        'Your answer is strong. Focus on adding even more measurable impact and specific examples.'
+      );
+    }
+
+    // FEEDBACK
+    let feedback = '';
+
+    if (score >= 85) {
+      feedback =
+        `Excellent answer. You demonstrated strong communication, relevant knowledge, and a structured response. For a ${role} interview, this would generally come across as confident and well-prepared.`;
+    } else if (score >= 70) {
+      feedback =
+        `Good answer. You demonstrated useful knowledge and reasonable structure. To make this interview-level strong, add more specific examples and measurable results.`;
+    } else if (score >= 55) {
+      feedback =
+        `Your answer shows potential, but it needs more depth. For a ${role} interview, explain what you personally did, why you made your decisions, and what result you achieved.`;
+    } else {
+      feedback =
+        `This answer needs significant improvement. Try using a structured example with the situation, your specific actions, and the final result.`;
+    }
+
+    // NEXT QUESTION
+    let nextQuestion = '';
+
+    if (!hasResult) {
+      nextQuestion =
+        `You mentioned your approach to the problem. Can you give me a specific real-world example from your experience as a ${role} and explain the result you achieved?`;
+    } else if (
+      matchedKeywords.length < 2
+    ) {
+      nextQuestion =
+        `Let's go deeper into your professional expertise. What is one difficult challenge you have faced as a ${role}, and how did you decide which solution to use?`;
+    } else if (
+      structureMatches < 2
+    ) {
+      nextQuestion =
+        `Imagine you are under significant pressure and a project is at risk of missing its deadline. Walk me through exactly how you would analyze the situation, prioritize the work, and communicate with stakeholders.`;
+    } else {
+      nextQuestion =
+        `Good. Now let's test your judgment. Tell me about a time when your first approach did not work. What did you change, and what did you learn from the experience?`;
+    }
+
+    return {
+      score,
+      rating,
+      strengths,
+      improvements,
+      feedback,
+      nextQuestion
+    };
   };
-  const speakQuestion = () => {
-    if (!questions?.questions[current] || !('speechSynthesis' in window)) { setSpeechError('Speech playback is not available in this browser.'); return; }
-    stopSpeech();
-    const utterance = new SpeechSynthesisUtterance(questions.questions[current]);
-    synthRef.current = utterance;
-    utterance.onstart = () => setSpeechState('speaking');
-    utterance.onend = () => setSpeechState('idle');
-    utterance.onerror = () => { setSpeechState('idle'); setSpeechError('Could not play the question. You can still read it below.'); };
-    window.speechSynthesis.speak(utterance);
-  };
-  const startListening = () => {
-    const win = window as SpeechWindow;
-    const Constructor = win.SpeechRecognition || win.webkitSpeechRecognition;
-    if (!Constructor) { setSpeechError('Microphone transcription is not supported here. Type your answer in the field below.'); return; }
-    stopSpeech();
-    setSpeechError('');
-    setSpeechText('');
-    speechTextRef.current = '';
+
+  // =========================================================
+  // MICROPHONE / SPEECH RECOGNITION
+  // =========================================================
+
+  const startRecording = async () => {
+    const SpeechRecognition =
+      (window as any).SpeechRecognition ||
+      (window as any)
+        .webkitSpeechRecognition;
+
+    if (!SpeechRecognition) {
+      alert(
+        'Speech recognition is not supported in this browser. Please use Google Chrome or Microsoft Edge.'
+      );
+      return;
+    }
+
+    if (
+      isSpeaking ||
+      isAnalyzing ||
+      isRecording
+    ) {
+      return;
+    }
+
+    if (
+      !navigator.mediaDevices ||
+      !navigator.mediaDevices.getUserMedia
+    ) {
+      alert(
+        'Your browser does not allow microphone access. Please use Google Chrome or Microsoft Edge and open the Preview in a separate tab.'
+      );
+      return;
+    }
+
+    if (
+      restartTimeoutRef.current
+    ) {
+      clearTimeout(
+        restartTimeoutRef.current
+      );
+
+      restartTimeoutRef.current =
+        null;
+    }
+
     try {
-      const recognition = new Constructor();
-      recognition.continuous = true;
-      recognition.interimResults = true;
-      recognition.lang = navigator.language || 'en-US';
-      recognition.onresult = (event) => {
-        let finalized = '';
-        let interim = '';
-        for (let i = event.resultIndex; i < event.results.length; i += 1) {
-          const result = event.results[i];
-          if (result.isFinal) finalized += result[0].transcript;
-          else interim += result[0].transcript;
+      // =====================================================
+      // EXPLICITLY REQUEST MICROPHONE PERMISSION
+      // =====================================================
+
+      const stream =
+        await navigator.mediaDevices.getUserMedia(
+          {
+            audio: {
+              echoCancellation: true,
+              noiseSuppression: true,
+              autoGainControl: true
+            }
+          }
+        );
+
+      microphoneStreamRef.current =
+        stream;
+
+      console.log(
+        'Microphone permission granted'
+      );
+
+      // SpeechRecognition uses the microphone.
+      // We only use getUserMedia here to explicitly
+      // trigger browser permission.
+
+      stream
+        .getTracks()
+        .forEach((track) => {
+          track.stop();
+        });
+
+      microphoneStreamRef.current =
+        null;
+
+      // =====================================================
+      // RESET TRANSCRIPT
+      // =====================================================
+
+      transcriptRef.current = '';
+
+      shouldKeepRecordingRef.current =
+        true;
+
+      setUserInput('');
+      setIsRecording(true);
+
+      // =====================================================
+      // CREATE RECOGNITION
+      // =====================================================
+
+      const createRecognition =
+        () => {
+          if (
+            !shouldKeepRecordingRef.current
+          ) {
+            return;
+          }
+
+          const recognition =
+            new SpeechRecognition();
+
+          recognition.lang =
+            'en-US';
+
+          recognition.continuous =
+            true;
+
+          recognition.interimResults =
+            true;
+
+          recognition.maxAlternatives =
+            1;
+
+          recognitionRef.current =
+            recognition;
+
+          recognition.onstart =
+            () => {
+              console.log(
+                'Speech recognition started'
+              );
+
+              setIsRecording(
+                true
+              );
+            };
+
+          recognition.onresult =
+            (event: any) => {
+              let finalText =
+                transcriptRef.current;
+
+              let interimText =
+                '';
+
+              for (
+                let i =
+                  event.resultIndex;
+                i <
+                event.results.length;
+                i++
+              ) {
+                const transcript =
+                  event.results[i][0]
+                    ?.transcript || '';
+
+                if (
+                  event.results[i]
+                    .isFinal
+                ) {
+                  finalText +=
+                    transcript + ' ';
+                } else {
+                  interimText +=
+                    transcript;
+                }
+              }
+
+              transcriptRef.current =
+                finalText;
+
+              const combinedText =
+                `${finalText}${interimText}`.trim();
+
+              console.log(
+                'Transcript:',
+                combinedText
+              );
+
+              setUserInput(
+                combinedText
+              );
+            };
+
+          recognition.onerror =
+            (event: any) => {
+              console.error(
+                'Speech recognition error:',
+                event?.error
+              );
+
+              if (
+                event?.error ===
+                  'not-allowed' ||
+                event?.error ===
+                  'service-not-allowed'
+              ) {
+                shouldKeepRecordingRef.current =
+                  false;
+
+                setIsRecording(
+                  false
+                );
+
+                alert(
+                  'Microphone access was blocked. Click the 🔒 icon near the website address, allow Microphone access, reload the page, and try again.'
+                );
+
+                return;
+              }
+
+              if (
+                event?.error ===
+                'audio-capture'
+              ) {
+                shouldKeepRecordingRef.current =
+                  false;
+
+                setIsRecording(
+                  false
+                );
+
+                alert(
+                  'No microphone was detected. Check that your microphone is connected and enabled in your computer settings.'
+                );
+
+                return;
+              }
+
+              if (
+                event?.error ===
+                'network'
+              ) {
+                console.warn(
+                  'Speech recognition network error.'
+                );
+              }
+            };
+
+          recognition.onend =
+            () => {
+              console.log(
+                'Speech recognition ended'
+              );
+
+              if (
+                shouldKeepRecordingRef.current
+              ) {
+                restartTimeoutRef.current =
+                  setTimeout(
+                    () => {
+                      if (
+                        !shouldKeepRecordingRef.current
+                      ) {
+                        return;
+                      }
+
+                      try {
+                        createRecognition();
+                      } catch (
+                        error
+                      ) {
+                        console.error(
+                          'Could not restart speech recognition:',
+                          error
+                        );
+                      }
+                    },
+                    300
+                  );
+              } else {
+                setIsRecording(
+                  false
+                );
+              }
+            };
+
+          try {
+            recognition.start();
+
+            console.log(
+              'Attempting to start speech recognition...'
+            );
+          } catch (error) {
+            console.error(
+              'Recognition start error:',
+              error
+            );
+          }
+        };
+
+      createRecognition();
+    } catch (error: any) {
+      console.error(
+        'Microphone permission error:',
+        error
+      );
+
+      setIsRecording(false);
+
+      if (
+        error?.name ===
+        'NotAllowedError'
+      ) {
+        alert(
+          'Microphone permission was denied. Please allow microphone access for this website and try again.'
+        );
+      } else if (
+        error?.name ===
+        'NotFoundError'
+      ) {
+        alert(
+          'No microphone was found. Please connect or enable a microphone and try again.'
+        );
+      } else if (
+        error?.name ===
+        'NotReadableError'
+      ) {
+        alert(
+          'Your microphone is already being used by another application. Close Zoom, Meet, Discord, WhatsApp, or another browser tab using the microphone, then try again.'
+        );
+      } else {
+        alert(
+          'Could not access your microphone. Please check your browser microphone permission and try again.'
+        );
+      }
+    }
+  };
+
+  // =========================================================
+  // STOP RECORDING AND ANALYZE
+  // =========================================================
+
+  const stopRecordingAndAnalyze =
+    () => {
+      console.log(
+        'Stopping recording...'
+      );
+
+      shouldKeepRecordingRef.current =
+        false;
+
+      if (
+        restartTimeoutRef.current
+      ) {
+        clearTimeout(
+          restartTimeoutRef.current
+        );
+
+        restartTimeoutRef.current =
+          null;
+      }
+
+      if (
+        recognitionRef.current
+      ) {
+        try {
+          recognitionRef.current.stop();
+        } catch (error) {
+          console.log(
+            'Recognition already stopped'
+          );
         }
-        if (finalized) speechTextRef.current = `${speechTextRef.current}${speechTextRef.current ? ' ' : ''}${finalized}`.trim();
-        setSpeechText(`${speechTextRef.current}${interim ? `${speechTextRef.current ? ' ' : ''}${interim}` : ''}`);
-      };
-      recognition.onerror = (event) => {
-        setSpeechState('idle');
-        setSpeechError(event.error === 'not-allowed' || event.error === 'service-not-allowed'
-          ? 'Microphone access was denied. Allow microphone access or type your answer below.'
-          : 'Speech capture stopped. Your transcript is still editable below.');
-      };
-      recognition.onend = () => {
-        setSpeechState('idle');
-        if (speechTextRef.current) setDraft((previous) => `${previous}${previous ? ' ' : ''}${speechTextRef.current}`.trim());
-      };
-      recognitionRef.current = recognition;
-      recognition.start();
-      setSpeechState('listening');
-    } catch {
-      setSpeechState('idle');
-      setSpeechError('Microphone access could not start. Type your answer in the field below.');
+      }
+
+      recognitionRef.current =
+        null;
+
+      if (
+        microphoneStreamRef.current
+      ) {
+        microphoneStreamRef.current
+          .getTracks()
+          .forEach((track) =>
+            track.stop()
+          );
+
+        microphoneStreamRef.current =
+          null;
+      }
+
+      setIsRecording(false);
+
+      // Give SpeechRecognition time
+      // to deliver final result.
+
+      setTimeout(() => {
+        const answer =
+          transcriptRef.current.trim() ||
+          userInput.trim();
+
+        console.log(
+          'Final answer:',
+          answer
+        );
+
+        if (!answer) {
+          const message =
+            'I could not detect an answer. Please make sure your microphone is enabled, speak clearly, and try again.';
+
+          setChatLog(
+            (previous) => [
+              ...previous,
+              {
+                sender: 'ai',
+                text: message
+              }
+            ]
+          );
+
+          speakText(message);
+
+          return;
+        }
+
+        analyzeAndContinue(
+          answer
+        );
+      }, 800);
+    };
+
+  // =========================================================
+  // ANALYZE AND CONTINUE
+  // =========================================================
+
+  const analyzeAndContinue = (
+    answer: string
+  ) => {
+    if (!currentQuestion) {
+      return;
     }
-  };
-  const stopListening = () => { recognitionRef.current?.stop(); setSpeechState('idle'); };
-  const acceptAnswer = () => {
-    if (!draft.trim()) { setValidation('Add a response before accepting this answer.'); return; }
-    setAnswers((all) => ({ ...all, [current]: draft.trim() }));
-    setValidation('');
-  };
-  const skipQuestion = () => {
-    setAnswers((all) => { const next = { ...all }; delete next[current]; return next; });
-    if (questions && current < questions.questions.length - 1) setCurrent((index) => index + 1);
-  };
-  const submitEvaluation = () => {
-    if (!questions) return;
-    const responses = questions.questions.flatMap((question, index) => answers[index]?.trim() ? [{ question, answer: answers[index].trim() }] : []);
-    if (responses.length < 3) { setValidation('Answer and accept at least three questions to get feedback.'); return; }
-    stopSpeech();
-    setValidation('');
-    evaluate.mutate({ data: { targetRole: role.trim(), ...(company.trim() ? { targetCompany: company.trim() } : {}), responses } }, {
-      onSuccess: (result) => setEvaluation(result),
-    });
-  };
-  const evalError = evaluate.error as (Error & { message?: string }) | null;
-  const genError = generate.error as (Error & { message?: string }) | null;
-  const answeredCount = Object.values(answers).filter((answer) => answer.trim()).length;
 
-  return <div className="page interview-page">
-    <section className="intro-row interview-intro">
-      <div><div className="eyebrow"><span className="eyebrow-line" />PRACTICE IS A KIND OF PREPARATION</div><h1>Find your voice<br />in the <em>room.</em></h1><p className="intro-copy">A thoughtful practice round, at your pace. Say it out loud, find your footing, and leave with something useful.</p></div>
-      <div className="interview-stamp"><span>THE PRACTICE<br />ROOM</span><AudioLines size={28} /></div>
-    </section>
-    {!questions ? <InterviewSetup role={role} setRole={setRole} company={company} setCompany={setCompany} onStart={startInterview} busy={generate.isPending} error={validation || (generate.isError ? genError?.message || 'Questions could not be generated. Try again.' : '')} /> : evaluation ? <EvaluationResults evaluation={evaluation} onRetry={() => { setEvaluation(null); setAnswers({}); setCurrent(0); setQuestions(null); }} /> : (
-      <div className="interview-workspace">
-        <section className="interview-panel panel">
-          {questions.source === 'local' && <div className="heuristic-notice" role="status" data-testid="status-local-questions"><CircleAlert size={14} /> Locally suggested questions — not AI-generated.</div>}
-          <div className="interview-panel-head"><div><div className="section-kicker">PRACTICE SESSION</div><h2>{questions.targetRole}{questions.targetCompany ? <span> · {questions.targetCompany}</span> : null}</h2></div><span className="question-count">{current + 1} <i>/</i> {questions.questions.length}</span></div>
-          <div className="progress-track" aria-label={`Question ${current + 1} of ${questions.questions.length}`}><span style={{ width: `${((current + 1) / questions.questions.length) * 100}%` }} /></div>
-          <div className="question-area">
-            <span className="question-number">QUESTION {String(current + 1).padStart(2, '0')}</span>
-            <h3 data-testid="text-current-question">{questions.questions[current]}</h3>
-            <div className={`speech-state ${speechState}`} role="status" data-testid="status-speech-state">
-              <span className="state-indicator" />{speechState === 'speaking' ? 'Reading the prompt aloud' : speechState === 'listening' ? 'Listening — take your time' : 'Your turn when you’re ready'}
-            </div>
-          </div>
-          <div className="question-controls">
-            <button className="round-control" onClick={speakQuestion} aria-label="Play question aloud" data-testid="button-speak-question"><Volume2 size={16} /><span>Replay</span></button>
-            {speechState === 'listening'
-              ? <button className="record-button listening" onClick={stopListening} aria-label="Stop microphone" data-testid="button-stop-listening"><Square size={14} fill="currentColor" /> Stop listening</button>
-              : <button className="record-button" onClick={startListening} aria-label="Start microphone answer" data-testid="button-start-listening"><Mic size={16} /> Answer by voice</button>}
-            {speechState === 'speaking' && <button className="round-control" onClick={stopSpeech} aria-label="Stop question playback" data-testid="button-stop-speech"><Square size={14} /> Stop audio</button>}
-          </div>
-          {(speechText || speechError) && <div className="transcript-box" role="status" data-testid="status-transcript">
-            <div className="transcript-head"><span><Headphones size={14} /> {speechState === 'listening' ? 'Live transcript' : 'Captured words'}</span>{speechText && <button onClick={() => { setSpeechText(''); speechTextRef.current = ''; }} aria-label="Clear transcript" data-testid="button-clear-transcript"><X size={14} /></button>}</div>
-            {speechText && <p>{speechText}</p>}{speechError && <p className="speech-error">{speechError}</p>}
-          </div>}
-          <label className="field-label answer-label" htmlFor="answer-text">Your answer <span className="optional-label">EDIT OR TYPE YOUR RESPONSE</span></label>
-          <textarea id="answer-text" className="answer-textarea" value={draft} maxLength={5000} onChange={(event) => { setDraft(event.target.value); setValidation(''); }} placeholder="No perfect wording needed. Start with the part you know." data-testid="input-interview-answer" />
-          <div className="answer-footer"><span>{draft.length.toLocaleString()} / 5,000 characters</span><button className={`accept-button ${answers[current] === draft.trim() && draft.trim() ? 'accepted' : ''}`} onClick={acceptAnswer} data-testid="button-accept-answer">{answers[current] === draft.trim() && draft.trim() ? <><Check size={15} /> Answer saved</> : <><Check size={15} /> Accept answer</>}</button></div>
-          {validation && <p className="inline-error" role="alert" data-testid="status-interview-validation"><CircleAlert size={14} />{validation}</p>}
-          {evaluate.isError && <p className="inline-error" role="alert" data-testid="status-evaluation-error"><CircleAlert size={14} />{evalError?.message || 'Feedback could not be prepared. Please try again.'}</p>}
-          <div className="question-footer">
-            <button className="quiet-button" onClick={skipQuestion} disabled={current >= questions.questions.length - 1} data-testid="button-skip-question">Skip question <ArrowRight size={14} /></button>
-            <div className="step-controls">
-              <button className="quiet-button" onClick={() => setCurrent((index) => Math.max(0, index - 1))} disabled={current === 0} data-testid="button-previous-question"><ArrowLeft size={14} /> Previous</button>
-              {current < questions.questions.length - 1
-                ? <button className="next-button" onClick={() => { if (draft.trim() && answers[current] !== draft.trim()) acceptAnswer(); setCurrent((index) => index + 1); }} data-testid="button-next-question">Next question <ArrowRight size={15} /></button>
-                : <button className="next-button" onClick={submitEvaluation} disabled={evaluate.isPending || answeredCount < 3} data-testid="button-submit-evaluation">{evaluate.isPending ? <><LoaderCircle className="spin" size={15} /> Preparing feedback</> : <>Get my feedback <ArrowRight size={15} /></>}</button>}
-            </div>
-          </div>
-          <p className="answered-note" data-testid="status-answered-count">{answeredCount} of {questions.questions.length} answers accepted · at least 3 for feedback</p>
-        </section>
-        <aside className="interview-aside">
-          <div className="aside-card panel"><span className="aside-index">A NOTE BEFORE YOU BEGIN</span><h3>There’s no score for sounding polished.</h3><p>This is rehearsal, not a verdict. Use your own words, pause to think, and take another run if you want one.</p><span className="aside-line" /><span className="aside-foot">KEEP IT HUMAN. KEEP IT YOURS.</span></div>
-          <div className="question-nav panel"><div className="section-kicker">YOUR QUESTIONS</div>{questions.questions.map((question, index) => <button key={index} className={`question-nav-item ${index === current ? 'current' : ''} ${answers[index] ? 'answered' : ''}`} onClick={() => setCurrent(index)} data-testid={`button-question-nav-${index}`}><span>{String(index + 1).padStart(2, '0')}</span><i>{answers[index] ? <Check size={13} /> : null}</i></button>)}</div>
-        </aside>
+    setIsAnalyzing(true);
+
+    setChatLog((previous) => [
+      ...previous,
+      {
+        sender: 'user',
+        text: answer
+      }
+    ]);
+
+    const result =
+      analyzeAnswer(
+        currentQuestion,
+        answer
+      );
+
+    setLastAnswerAnalysis(
+      result
+    );
+
+    setInterviewAnswers(
+      (previous) => [
+        ...previous,
+        {
+          question:
+            currentQuestion,
+          answer,
+          analysis: result
+        }
+      ]
+    );
+
+    const feedbackMessage =
+      `I have analyzed your answer. Your score is ${result.score} out of 100, rated ${result.rating}. ${result.feedback} One important improvement is: ${result.improvements[0]}`;
+
+    const nextQuestion =
+      result.nextQuestion;
+
+    setTimeout(() => {
+      setChatLog((previous) => [
+        ...previous,
+        {
+          sender: 'ai',
+          text: feedbackMessage
+        },
+        {
+          sender: 'ai',
+          text:
+            `Next question: ${nextQuestion}`
+        }
+      ]);
+
+      setCurrentQuestion(
+        nextQuestion
+      );
+
+      setIsAnalyzing(false);
+
+      speakText(
+        `${feedbackMessage} ${nextQuestion}`
+      );
+    }, 700);
+  };
+
+  // =========================================================
+  // START INTERVIEW
+  // =========================================================
+
+  const startVoiceSession = () => {
+    if (!targetRole.trim()) {
+      alert(
+        'Please enter your target profession first.'
+      );
+
+      setActiveTab('matrix');
+
+      return;
+    }
+
+    window.speechSynthesis?.cancel();
+
+    shouldKeepRecordingRef.current =
+      false;
+
+    if (
+      recognitionRef.current
+    ) {
+      try {
+        recognitionRef.current.stop();
+      } catch (error) {}
+    }
+
+    recognitionRef.current =
+      null;
+
+    setChatLog([]);
+    setInterviewAnswers([]);
+    setLastAnswerAnalysis(null);
+    setUserInput('');
+    transcriptRef.current = '';
+
+    setIsRecording(false);
+    setInterviewStarted(true);
+
+    const firstQuestion =
+      `Hello ${
+        candidateName ||
+        'candidate'
+      }. Welcome to your ${
+        targetRole
+      } interview${
+        targetCompany
+          ? ` for ${targetCompany}`
+          : ''
+      }. I will evaluate the quality, relevance, structure, and depth of your answers. Let's begin. Tell me about yourself and your professional experience relevant to this role.`;
+
+    setCurrentQuestion(
+      firstQuestion
+    );
+
+    setChatLog([
+      {
+        sender: 'ai',
+        text: firstQuestion
+      }
+    ]);
+
+    speakText(firstQuestion);
+  };
+
+  // =========================================================
+  // STOP INTERVIEW
+  // =========================================================
+
+  const stopInterview = () => {
+    shouldKeepRecordingRef.current =
+      false;
+
+    if (
+      restartTimeoutRef.current
+    ) {
+      clearTimeout(
+        restartTimeoutRef.current
+      );
+
+      restartTimeoutRef.current =
+        null;
+    }
+
+    if (
+      recognitionRef.current
+    ) {
+      try {
+        recognitionRef.current.stop();
+      } catch (error) {}
+    }
+
+    recognitionRef.current =
+      null;
+
+    if (
+      microphoneStreamRef.current
+    ) {
+      microphoneStreamRef.current
+        .getTracks()
+        .forEach((track) =>
+          track.stop()
+        );
+
+      microphoneStreamRef.current =
+        null;
+    }
+
+    window.speechSynthesis?.cancel();
+
+    setIsRecording(false);
+    setIsSpeaking(false);
+    setInterviewStarted(false);
+    setIsAnalyzing(false);
+  };
+
+  // =========================================================
+  // RENDER
+  // =========================================================
+
+  return (
+    <div
+      style={{
+        backgroundColor: '#0f172a',
+        minHeight: '100vh',
+        color: '#f8fafc',
+        fontFamily:
+          'Inter, Arial, sans-serif',
+        padding: '24px'
+      }}
+    >
+      {/* =====================================================
+          HEADER
+      ====================================================== */}
+
+      <div
+        style={{
+          maxWidth: '1150px',
+          margin:
+            '0 auto 24px auto',
+          display: 'flex',
+          justifyContent:
+            'space-between',
+          alignItems: 'center',
+          borderBottom:
+            '1px solid #334155',
+          paddingBottom: '16px',
+          gap: '16px',
+          flexWrap: 'wrap'
+        }}
+      >
+        <div>
+          <h1
+            style={{
+              margin: 0,
+              fontSize: '24px',
+              fontWeight: 800,
+              color: '#38bdf8'
+            }}
+          >
+            ⚡ SkillTwin AI
+          </h1>
+
+          <p
+            style={{
+              margin:
+                '4px 0 0 0',
+              fontSize: '13px',
+              color: '#94a3b8'
+            }}
+          >
+            AI Voice Interview &
+            Intelligent Skill Gap
+            Analysis
+          </p>
+        </div>
+
+        <div
+          style={{
+            display: 'flex',
+            gap: '8px'
+          }}
+        >
+          <button
+            onClick={() =>
+              setActiveTab(
+                'matrix'
+              )
+            }
+            style={{
+              padding:
+                '9px 16px',
+              border: 'none',
+              borderRadius: '6px',
+              cursor: 'pointer',
+              fontWeight: 700,
+              color: '#fff',
+              backgroundColor:
+                activeTab ===
+                'matrix'
+                  ? '#0284c7'
+                  : '#1e293b'
+            }}
+          >
+            📊 Skill Matrix
+          </button>
+
+          <button
+            onClick={() =>
+              setActiveTab(
+                'assessor'
+              )
+            }
+            style={{
+              padding:
+                '9px 16px',
+              border: 'none',
+              borderRadius: '6px',
+              cursor: 'pointer',
+              fontWeight: 700,
+              color: '#fff',
+              backgroundColor:
+                activeTab ===
+                'assessor'
+                  ? '#0284c7'
+                  : '#1e293b'
+            }}
+          >
+            🎙️ AI Interview
+          </button>
+        </div>
       </div>
-    )}
-    {evaluation && <div className="evaluation-local-note" />}
-    <footer className="page-footer"><span>Make room to think.</span><span>SkillTwin <i>—</i> Practice at your pace.</span></footer>
-  </div>;
-}
 
-function InterviewSetup({ role, setRole, company, setCompany, onStart, busy, error }: {
-  role: string; setRole: (role: string) => void; company: string; setCompany: (company: string) => void; onStart: () => void; busy: boolean; error: string;
-}) {
-  return <div className="interview-setup-grid">
-    <section className="interview-setup panel">
-      <div className="panel-heading"><span className="heading-index">01</span><div><div className="section-kicker">A LITTLE CONTEXT</div><h2>Set up your practice round</h2></div></div>
-      <div className="form-section"><label className="field-label" htmlFor="interview-role">Target role</label><input id="interview-role" className="text-input" list="role-suggestions-interview" value={role} maxLength={100} onChange={(event) => setRole(event.target.value)} placeholder="The role you’re working toward" data-testid="input-interview-role" /><datalist id="role-suggestions-interview">{ROLE_SUGGESTIONS.map((item) => <option key={item} value={item} />)}</datalist></div>
-      <div className="form-section"><label className="field-label" htmlFor="interview-company">Company <span className="optional-label">OPTIONAL</span></label><input id="interview-company" className="text-input" value={company} maxLength={100} onChange={(event) => setCompany(event.target.value)} placeholder="Add a company for more tailored questions" data-testid="input-interview-company" /></div>
-      {error && <div className="error-callout" role="alert" data-testid="status-interview-error"><CircleAlert size={16} /><span>{error}</span></div>}
-      <button className="analyze-button start-interview" onClick={onStart} disabled={busy} data-testid="button-start-interview">{busy ? <><LoaderCircle className="spin" size={16} /> Preparing your questions</> : <><Play size={15} /> Start practice <ArrowRight size={16} /></>}</button>
-      <p className="privacy-note"><span /> 3–5 questions, one at a time. You decide when to speak.</p>
-    </section>
-    <div className="interview-prep panel"><div className="prep-illustration"><span className="prep-circle circle-one" /><span className="prep-circle circle-two" /><div className="prep-center"><AudioLines size={26} /></div><i className="prep-dot" /></div><div className="eyebrow">A LOW-STAKES REHEARSAL</div><h2>Take a breath.<br /><em>You’ve got this.</em></h2><p>Speak your answer or type it out. Review everything before it becomes feedback.</p><div className="prep-steps"><span><b>01</b> Hear a question</span><span><b>02</b> Find your words</span><span><b>03</b> Take a useful note</span></div></div>
-  </div>;
-}
+      <div
+        style={{
+          maxWidth: '1150px',
+          margin: '0 auto'
+        }}
+      >
+        {/* =====================================================
+            SKILL MATRIX
+        ====================================================== */}
 
-function EvaluationResults({ evaluation, onRetry }: { evaluation: MockInterviewEvaluation; onRetry: () => void }) {
-  const scores = [['Overall', evaluation.overallScore], ['Clarity', evaluation.clarityScore], ['Technical accuracy', evaluation.technicalAccuracy]] as const;
-  return <section className="evaluation-results" data-testid="status-evaluation-results">
-    {evaluation.source === 'local' && <div className="local-estimate-notice" role="status" data-testid="status-local-evaluation"><CircleAlert size={15} /><span><strong>Heuristic feedback</strong> — these local estimates use simple text signals. They are not authoritative or a judgment of your ability.</span></div>}
-    <div className="evaluation-hero panel"><div className="eyebrow"><span className="eyebrow-line" />YOUR PRACTICE NOTES</div><h2>A first take.<br /><em>Not the final word.</em></h2><p>{evaluation.summary}</p><div className="evaluation-meta">{evaluation.targetRole}{evaluation.targetCompany ? ` · ${evaluation.targetCompany}` : ''} <span>{evaluation.source === 'local' ? 'HEURISTIC' : 'AI-ASSISTED'}</span></div></div>
-    <div className="score-feedback panel"><div className="section-kicker">THREE WAYS TO READ THE ROUND</div><div className="feedback-scores">{scores.map(([label, value], index) => <div className="feedback-score" key={label} data-testid={`score-${index}`}><div className="score-meter"><span style={{ width: `${value}%` }} /></div><div><strong>{value}<small>/100</small></strong><span>{label}</span></div></div>)}</div></div>
-    <div className="concept-grid">
-      <ConceptCard title="What came through" items={evaluation.conceptsCovered} good testId="list-concepts-covered" />
-      <ConceptCard title="Worth bringing in next time" items={evaluation.missedConcepts} testId="list-concepts-missed" />
+        {activeTab === 'matrix' && (
+          <div
+            style={{
+              display: 'grid',
+              gridTemplateColumns:
+                '1fr 1fr',
+              gap: '24px'
+            }}
+          >
+            {/* LEFT SIDE */}
+
+            <div
+              style={{
+                backgroundColor:
+                  '#1e293b',
+                padding: '20px',
+                borderRadius:
+                  '10px'
+              }}
+            >
+              <h3>
+                Candidate & Profession
+              </h3>
+
+              {/* NAME */}
+
+              <label
+                style={{
+                  fontSize: '12px',
+                  color: '#94a3b8'
+                }}
+              >
+                Candidate Name
+              </label>
+
+              <input
+                value={candidateName}
+                onChange={(e) =>
+                  setCandidateName(
+                    e.target.value
+                  )
+                }
+                placeholder="Your name"
+                style={{
+                  width: '100%',
+                  margin:
+                    '5px 0 15px',
+                  padding: '10px',
+                  borderRadius:
+                    '6px',
+                  border:
+                    '1px solid #334155',
+                  background:
+                    '#0f172a',
+                  color: '#fff',
+                  boxSizing:
+                    'border-box'
+                }}
+              />
+
+              {/* ROLE */}
+
+              <label
+                style={{
+                  fontSize: '12px',
+                  color: '#94a3b8'
+                }}
+              >
+                Target Role *
+              </label>
+
+              <input
+                value={targetRole}
+                onChange={(e) =>
+                  handleRoleInputChange(
+                    e.target.value
+                  )
+                }
+                placeholder="e.g. Software Engineer"
+                style={{
+                  width: '100%',
+                  margin:
+                    '5px 0 15px',
+                  padding: '10px',
+                  borderRadius:
+                    '6px',
+                  border:
+                    '1px solid #0284c7',
+                  background:
+                    '#0f172a',
+                  color: '#fff',
+                  boxSizing:
+                    'border-box'
+                }}
+              />
+
+              {/* COMPANY */}
+
+              <label
+                style={{
+                  fontSize: '12px',
+                  color: '#94a3b8'
+                }}
+              >
+                Target Company
+              </label>
+
+              <input
+                value={targetCompany}
+                onChange={(e) =>
+                  setTargetCompany(
+                    e.target.value
+                  )
+                }
+                placeholder="e.g. Microsoft"
+                style={{
+                  width: '100%',
+                  margin:
+                    '5px 0 15px',
+                  padding: '10px',
+                  borderRadius:
+                    '6px',
+                  border:
+                    '1px solid #334155',
+                  background:
+                    '#0f172a',
+                  color: '#fff',
+                  boxSizing:
+                    'border-box'
+                }}
+              />
+
+              {/* =================================================
+                  OPTIONAL RESUME
+              ================================================= */}
+
+              <div
+                style={{
+                  marginTop: '20px',
+                  background:
+                    '#0f172a',
+                  padding: '15px',
+                  borderRadius:
+                    '8px',
+                  border:
+                    '1px solid #334155'
+                }}
+              >
+                <h4
+                  style={{
+                    marginTop: 0,
+                    color:
+                      '#38bdf8'
+                  }}
+                >
+                  📄 Optional Resume
+                </h4>
+
+                <p
+                  style={{
+                    fontSize: '11px',
+                    color:
+                      '#94a3b8',
+                    lineHeight:
+                      '1.5'
+                  }}
+                >
+                  Paste your resume here
+                  if you want SkillTwin
+                  AI to analyze it against
+                  your target role.
+                  This is completely
+                  optional.
+                </p>
+
+                <textarea
+                  value={resumeText}
+                  onChange={(e) =>
+                    setResumeText(
+                      e.target.value
+                    )
+                  }
+                  placeholder="Paste your resume here..."
+                  rows={9}
+                  style={{
+                    width: '100%',
+                    padding: '10px',
+                    boxSizing:
+                      'border-box',
+                    background:
+                      '#111827',
+                    color: '#fff',
+                    border:
+                      '1px solid #334155',
+                    borderRadius:
+                      '6px',
+                    resize:
+                      'vertical',
+                    fontFamily:
+                      'inherit',
+                    fontSize:
+                      '12px',
+                    lineHeight:
+                      '1.5'
+                  }}
+                />
+
+                <button
+                  onClick={
+                    analyzeResume
+                  }
+                  disabled={
+                    !resumeText.trim() ||
+                    !targetRole.trim() ||
+                    isResumeAnalyzing
+                  }
+                  style={{
+                    width: '100%',
+                    padding:
+                      '10px',
+                    marginTop:
+                      '10px',
+                    background:
+                      '#7c3aed',
+                    color: '#fff',
+                    border:
+                      'none',
+                    borderRadius:
+                      '6px',
+                    fontWeight:
+                      700,
+                    cursor:
+                      'pointer'
+                  }}
+                >
+                  {isResumeAnalyzing
+                    ? '🧠 Analyzing Resume...'
+                    : '📄 Analyze Resume'}
+                </button>
+              </div>
+
+              {/* SKILLS */}
+
+              <h4
+                style={{
+                  color:
+                    '#38bdf8'
+                }}
+              >
+                Proficiency Ratings
+              </h4>
+
+              {activeSkills.map(
+                (skill) => {
+                  const value =
+                    customRatings[
+                      skill.name
+                    ] ?? 50;
+
+                  return (
+                    <div
+                      key={
+                        skill.name
+                      }
+                      style={{
+                        background:
+                          '#0f172a',
+                        padding:
+                          '10px',
+                        marginBottom:
+                          '10px',
+                        borderRadius:
+                          '6px'
+                      }}
+                    >
+                      <div
+                        style={{
+                          display:
+                            'flex',
+                          justifyContent:
+                            'space-between',
+                          fontSize:
+                            '12px',
+                          gap:
+                            '10px'
+                        }}
+                      >
+                        <span>
+                          {skill.name}
+                        </span>
+
+                        <strong
+                          style={{
+                            color:
+                              '#38bdf8',
+                            whiteSpace:
+                              'nowrap'
+                          }}
+                        >
+                          {value}% /{' '}
+                          {
+                            skill.recommendedScore
+                          }%
+                        </strong>
+                      </div>
+
+                      <input
+                        type="range"
+                        min="0"
+                        max="100"
+                        value={value}
+                        onChange={(e) =>
+                          handleSliderChange(
+                            skill.name,
+                            Number(
+                              e.target
+                                .value
+                            )
+                          )
+                        }
+                        style={{
+                          width:
+                            '100%',
+                          accentColor:
+                            '#0284c7'
+                        }}
+                      />
+
+                      <div
+                        style={{
+                          color:
+                            '#64748b',
+                          fontSize:
+                            '10px'
+                        }}
+                      >
+                        {
+                          skill.description
+                        }
+                      </div>
+                    </div>
+                  );
+                }
+              )}
+
+              <button
+                onClick={
+                  calculateGaps
+                }
+                disabled={
+                  !activeSkills.length
+                }
+                style={{
+                  width: '100%',
+                  padding: '11px',
+                  marginTop:
+                    '10px',
+                  background:
+                    '#0284c7',
+                  color: '#fff',
+                  border: 'none',
+                  borderRadius:
+                    '6px',
+                  fontWeight: 700,
+                  cursor: 'pointer'
+                }}
+              >
+                Calculate Skill Gaps
+              </button>
+            </div>
+
+            {/* =================================================
+                RIGHT SIDE
+            ================================================= */}
+
+            <div
+              style={{
+                display:
+                  'flex',
+                flexDirection:
+                  'column',
+                gap: '20px'
+              }}
+            >
+              {/* RESUME RESULT */}
+
+              {resumeAnalysis && (
+                <div
+                  style={{
+                    background:
+                      '#1e293b',
+                    padding:
+                      '20px',
+                    borderRadius:
+                      '10px'
+                  }}
+                >
+                  <h3
+                    style={{
+                      marginTop:
+                        0
+                    }}
+                  >
+                    📄 Resume Evaluation
+                  </h3>
+
+                  <div
+                    style={{
+                      background:
+                        '#0f172a',
+                      padding:
+                        '20px',
+                      borderRadius:
+                        '8px',
+                      marginBottom:
+                        '15px'
+                    }}
+                  >
+                    <div
+                      style={{
+                        color:
+                          '#94a3b8',
+                        fontSize:
+                          '12px'
+                      }}
+                    >
+                      Resume Match
+                    </div>
+
+                    <div
+                      style={{
+                        fontSize:
+                          '36px',
+                        fontWeight:
+                          800,
+                        color:
+                          resumeAnalysis.resumeScore >=
+                          75
+                            ? '#4ade80'
+                            : resumeAnalysis.resumeScore >=
+                              55
+                            ? '#facc15'
+                            : '#f87171'
+                      }}
+                    >
+                      {
+                        resumeAnalysis.resumeScore
+                      }%
+                    </div>
+
+                    <p
+                      style={{
+                        color:
+                          '#cbd5e1',
+                        fontSize:
+                          '13px',
+                        lineHeight:
+                          '1.5'
+                      }}
+                    >
+                      {
+                        resumeAnalysis.summary
+                      }
+                    </p>
+                  </div>
+
+                  <div
+                    style={{
+                      marginBottom:
+                        '15px'
+                    }}
+                  >
+                    <strong
+                      style={{
+                        color:
+                          '#4ade80'
+                      }}
+                    >
+                      ✓ Skills Found
+                    </strong>
+
+                    <div
+                      style={{
+                        marginTop:
+                          '8px',
+                        display:
+                          'flex',
+                        flexWrap:
+                          'wrap',
+                        gap:
+                          '6px'
+                      }}
+                    >
+                      {resumeAnalysis
+                        .matchedSkills
+                        .length >
+                      0 ? (
+                        resumeAnalysis.matchedSkills.map(
+                          (
+                            skill
+                          ) => (
+                            <span
+                              key={
+                                skill
+                              }
+                              style={{
+                                background:
+                                  '#14532d',
+                                color:
+                                  '#bbf7d0',
+                                padding:
+                                  '5px 8px',
+                                borderRadius:
+                                  '5px',
+                                fontSize:
+                                  '11px'
+                              }}
+                            >
+                              {skill}
+                            </span>
+                          )
+                        )
+                      ) : (
+                        <span
+                          style={{
+                            color:
+                              '#94a3b8',
+                            fontSize:
+                              '12px'
+                          }}
+                        >
+                          No major matching
+                          keywords detected.
+                        </span>
+                      )}
+                    </div>
+                  </div>
+
+                  <div
+                    style={{
+                      marginBottom:
+                        '15px'
+                    }}
+                  >
+                    <strong
+                      style={{
+                        color:
+                          '#f87171'
+                      }}
+                    >
+                      ⚠️ Skills Not Found
+                    </strong>
+
+                    <div
+                      style={{
+                        marginTop:
+                          '8px',
+                        display:
+                          'flex',
+                        flexWrap:
+                          'wrap',
+                        gap:
+                          '6px'
+                      }}
+                    >
+                      {resumeAnalysis
+                        .missingSkills
+                        .slice(
+                          0,
+                          8
+                        )
+                        .map(
+                          (
+                            skill
+                          ) => (
+                            <span
+                              key={
+                                skill
+                              }
+                              style={{
+                                background:
+                                  '#451a1a',
+                                color:
+                                  '#fecaca',
+                                padding:
+                                  '5px 8px',
+                                borderRadius:
+                                  '5px',
+                                fontSize:
+                                  '11px'
+                              }}
+                            >
+                              {skill}
+                            </span>
+                          )
+                        )}
+                    </div>
+                  </div>
+
+                  <div
+                    style={{
+                      marginBottom:
+                        '15px'
+                    }}
+                  >
+                    <strong
+                      style={{
+                        color:
+                          '#4ade80'
+                      }}
+                    >
+                      Strengths
+                    </strong>
+
+                    {resumeAnalysis.resumeStrengths.map(
+                      (
+                        item,
+                        index
+                      ) => (
+                        <div
+                          key={
+                            index
+                          }
+                          style={{
+                            fontSize:
+                              '12px',
+                            color:
+                              '#cbd5e1',
+                            marginTop:
+                              '6px'
+                          }}
+                        >
+                          ✓ {item}
+                        </div>
+                      )
+                    )}
+                  </div>
+
+                  <div>
+                    <strong
+                      style={{
+                        color:
+                          '#facc15'
+                      }}
+                    >
+                      Improvements
+                    </strong>
+
+                    {resumeAnalysis.resumeImprovements.map(
+                      (
+                        item,
+                        index
+                      ) => (
+                        <div
+                          key={
+                            index
+                          }
+                          style={{
+                            fontSize:
+                              '12px',
+                            color:
+                              '#cbd5e1',
+                            marginTop:
+                              '6px'
+                          }}
+                        >
+                          → {item}
+                        </div>
+                      )
+                    )}
+                  </div>
+                </div>
+              )}
+
+              {/* SKILL MATRIX RESULT */}
+
+              <div
+                style={{
+                  backgroundColor:
+                    '#1e293b',
+                  padding:
+                    '20px',
+                  borderRadius:
+                    '10px'
+                }}
+              >
+                <h3>
+                  Evaluation &
+                  Learning Roadmap
+                </h3>
+
+                {!analysis ? (
+                  <div
+                    style={{
+                      padding:
+                        '60px 20px',
+                      textAlign:
+                        'center',
+                      color:
+                        '#64748b'
+                    }}
+                  >
+                    Enter your role
+                    and calculate
+                    your skill gaps.
+                  </div>
+                ) : (
+                  <>
+                    <div
+                      style={{
+                        background:
+                          '#0f172a',
+                        padding:
+                          '20px',
+                        borderRadius:
+                          '8px',
+                        marginBottom:
+                          '15px'
+                      }}
+                    >
+                      <div
+                        style={{
+                          color:
+                            '#94a3b8',
+                          fontSize:
+                            '12px'
+                        }}
+                      >
+                        Overall Score
+                      </div>
+
+                      <div
+                        style={{
+                          fontSize:
+                            '36px',
+                          fontWeight:
+                            800,
+                          color:
+                            analysis.score >=
+                            75
+                              ? '#4ade80'
+                              : '#f87171'
+                        }}
+                      >
+                        {
+                          analysis.score
+                        }%
+                      </div>
+
+                      <strong>
+                        {
+                          analysis.verdict
+                        }
+                      </strong>
+                    </div>
+
+                    <div
+                      style={{
+                        background:
+                          '#2a1a1a',
+                        padding:
+                          '15px',
+                        borderRadius:
+                          '8px',
+                        marginBottom:
+                          '15px'
+                      }}
+                    >
+                      <h4
+                        style={{
+                          color:
+                            '#f87171'
+                        }}
+                      >
+                        ⚠️ Skill Gaps
+                      </h4>
+
+                      {analysis
+                        .deficientSkills
+                        .length >
+                      0 ? (
+                        analysis.deficientSkills.map(
+                          (
+                            skill: string
+                          ) => (
+                            <div
+                              key={
+                                skill
+                              }
+                              style={{
+                                fontSize:
+                                  '12px',
+                                marginBottom:
+                                  '5px'
+                              }}
+                            >
+                              • {skill}
+                            </div>
+                          )
+                        )
+                      ) : (
+                        <div
+                          style={{
+                            fontSize:
+                              '12px',
+                            color:
+                              '#4ade80'
+                          }}
+                        >
+                          No major skill
+                          gaps based on
+                          your current
+                          ratings.
+                        </div>
+                      )}
+                    </div>
+
+                    <div
+                      style={{
+                        background:
+                          '#0f172a',
+                        padding:
+                          '15px',
+                        borderRadius:
+                          '8px',
+                        borderLeft:
+                          '4px solid #38bdf8'
+                      }}
+                    >
+                      {
+                        analysis.suggestionParagraph
+                      }
+                    </div>
+                  </>
+                )}
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* =====================================================
+            AI INTERVIEW
+        ====================================================== */}
+
+        {activeTab === 'assessor' && (
+          <div
+            style={{
+              maxWidth:
+                '850px',
+              margin:
+                '0 auto'
+            }}
+          >
+            <div
+              style={{
+                background:
+                  '#1e293b',
+                borderRadius:
+                  '12px',
+                padding:
+                  '24px'
+              }}
+            >
+              {/* TITLE */}
+
+              <div
+                style={{
+                  textAlign:
+                    'center'
+                }}
+              >
+                <h2
+                  style={{
+                    margin:
+                      '0 0 5px',
+                    color:
+                      '#38bdf8'
+                  }}
+                >
+                  🤖 AI Interviewer
+                </h2>
+
+                <p
+                  style={{
+                    color:
+                      '#94a3b8',
+                    fontSize:
+                      '13px'
+                  }}
+                >
+                  {targetRole ||
+                    'Choose a role first'}
+                  {targetCompany
+                    ? ` • ${targetCompany}`
+                    : ''}
+                </p>
+              </div>
+
+              {/* ROBOT */}
+
+              <div
+                style={{
+                  display:
+                    'flex',
+                  justifyContent:
+                    'center',
+                  margin:
+                    '20px 0'
+                }}
+              >
+                <div
+                  style={{
+                    width: '110px',
+                    height:
+                      '110px',
+                    borderRadius:
+                      '50%',
+                    display:
+                      'flex',
+                    justifyContent:
+                      'center',
+                    alignItems:
+                      'center',
+                    fontSize:
+                      '40px',
+                    background:
+                      isSpeaking
+                        ? 'radial-gradient(circle, #38bdf8, #0369a1)'
+                        : isRecording
+                        ? 'radial-gradient(circle, #ef4444, #991b1b)'
+                        : 'radial-gradient(circle, #64748b, #1e293b)',
+                    boxShadow:
+                      isSpeaking
+                        ? '0 0 35px #38bdf8'
+                        : isRecording
+                        ? '0 0 35px #ef4444'
+                        : '0 0 15px #334155',
+                    transform:
+                      isSpeaking ||
+                      isRecording
+                        ? 'scale(1.08)'
+                        : 'scale(1)',
+                    transition:
+                      '0.3s'
+                  }}
+                >
+                  {isSpeaking
+                    ? '🗣️'
+                    : isRecording
+                    ? '🎙️'
+                    : isAnalyzing
+                    ? '🧠'
+                    : '🤖'}
+                </div>
+              </div>
+
+              {/* STATUS */}
+
+              <div
+                style={{
+                  textAlign:
+                    'center',
+                  color:
+                    isRecording
+                      ? '#ef4444'
+                      : isSpeaking
+                      ? '#38bdf8'
+                      : isAnalyzing
+                      ? '#facc15'
+                      : '#94a3b8',
+                  fontWeight:
+                    700,
+                  marginBottom:
+                    '15px'
+                }}
+              >
+                {isRecording
+                  ? '🎙️ Listening to your answer...'
+                  : isSpeaking
+                  ? '🗣️ AI is speaking...'
+                  : isAnalyzing
+                  ? '🧠 AI is analyzing your answer...'
+                  : interviewStarted
+                  ? 'Ready for your answer'
+                  : 'Interview not started'}
+              </div>
+
+              {/* START */}
+
+              {!interviewStarted && (
+                <button
+                  onClick={
+                    startVoiceSession
+                  }
+                  style={{
+                    width: '100%',
+                    padding:
+                      '14px',
+                    background:
+                      '#0284c7',
+                    color:
+                      '#fff',
+                    border:
+                      'none',
+                    borderRadius:
+                      '8px',
+                    fontWeight:
+                      800,
+                    cursor:
+                      'pointer',
+                    fontSize:
+                      '15px',
+                    marginBottom:
+                      '15px'
+                  }}
+                >
+                  ▶️ Start AI Interview
+                </button>
+              )}
+
+              {/* CHAT */}
+
+              <div
+                style={{
+                  height:
+                    '330px',
+                  overflowY:
+                    'auto',
+                  background:
+                    '#0f172a',
+                  padding:
+                    '15px',
+                  borderRadius:
+                    '8px',
+                  display:
+                    'flex',
+                  flexDirection:
+                    'column',
+                  gap:
+                    '12px',
+                  marginBottom:
+                    '12px'
+                }}
+              >
+                {chatLog.length ===
+                0 ? (
+                  <div
+                    style={{
+                      color:
+                        '#64748b',
+                      textAlign:
+                        'center',
+                      marginTop:
+                        '130px',
+                      fontSize:
+                        '13px'
+                    }}
+                  >
+                    Your AI interviewer
+                    will appear here.
+                  </div>
+                ) : (
+                  chatLog.map(
+                    (
+                      message,
+                      index
+                    ) => (
+                      <div
+                        key={
+                          index
+                        }
+                        style={{
+                          alignSelf:
+                            message.sender ===
+                            'ai'
+                              ? 'flex-start'
+                              : 'flex-end',
+                          maxWidth:
+                            '85%'
+                        }}
+                      >
+                        <div
+                          style={{
+                            fontSize:
+                              '10px',
+                            color:
+                              '#64748b',
+                            marginBottom:
+                              '3px'
+                          }}
+                        >
+                          {message.sender ===
+                          'ai'
+                            ? '🤖 AI Interviewer'
+                            : `👤 ${
+                                candidateName ||
+                                'You'
+                              }`}
+                        </div>
+
+                        <div
+                          style={{
+                            background:
+                              message.sender ===
+                              'ai'
+                                ? '#334155'
+                                : '#0284c7',
+                            padding:
+                              '10px 13px',
+                            borderRadius:
+                              '8px',
+                            fontSize:
+                              '13px',
+                            lineHeight:
+                              '1.5'
+                          }}
+                        >
+                          {
+                            message.text
+                          }
+                        </div>
+                      </div>
+                    )
+                  )
+                )}
+              </div>
+
+              {/* ANSWER ANALYSIS */}
+
+              {lastAnswerAnalysis && (
+                <div
+                  style={{
+                    background:
+                      '#0f172a',
+                    border:
+                      '1px solid #334155',
+                    borderRadius:
+                      '8px',
+                    padding:
+                      '15px',
+                    marginBottom:
+                      '12px'
+                  }}
+                >
+                  <div
+                    style={{
+                      display:
+                        'flex',
+                      justifyContent:
+                        'space-between',
+                      alignItems:
+                        'center',
+                      marginBottom:
+                        '12px'
+                    }}
+                  >
+                    <strong
+                      style={{
+                        color:
+                          '#38bdf8'
+                      }}
+                    >
+                      🧠 Latest Answer
+                      Analysis
+                    </strong>
+
+                    <span
+                      style={{
+                        fontSize:
+                          '22px',
+                        fontWeight:
+                          800,
+                        color:
+                          lastAnswerAnalysis.score >=
+                          75
+                            ? '#4ade80'
+                            : lastAnswerAnalysis.score >=
+                              55
+                            ? '#facc15'
+                            : '#f87171'
+                      }}
+                    >
+                      {
+                        lastAnswerAnalysis.score
+                      }
+                      /100
+                    </span>
+                  </div>
+
+                  <div
+                    style={{
+                      marginBottom:
+                        '10px',
+                      color:
+                        '#cbd5e1',
+                      fontSize:
+                        '13px'
+                    }}
+                  >
+                    <strong>
+                      Rating:
+                    </strong>{' '}
+                    {
+                      lastAnswerAnalysis.rating
+                    }
+                  </div>
+
+                  <div
+                    style={{
+                      marginBottom:
+                        '10px'
+                    }}
+                  >
+                    <strong
+                      style={{
+                        color:
+                          '#4ade80'
+                      }}
+                    >
+                      Strengths
+                    </strong>
+
+                    {lastAnswerAnalysis.strengths.map(
+                      (
+                        item,
+                        index
+                      ) => (
+                        <div
+                          key={
+                            index
+                          }
+                          style={{
+                            fontSize:
+                              '12px',
+                            color:
+                              '#cbd5e1',
+                            marginTop:
+                              '4px'
+                          }}
+                        >
+                          ✓ {item}
+                        </div>
+                      )
+                    )}
+                  </div>
+
+                  <div>
+                    <strong
+                      style={{
+                        color:
+                          '#facc15'
+                      }}
+                    >
+                      Improve
+                    </strong>
+
+                    {lastAnswerAnalysis.improvements.map(
+                      (
+                        item,
+                        index
+                      ) => (
+                        <div
+                          key={
+                            index
+                          }
+                          style={{
+                            fontSize:
+                              '12px',
+                            color:
+                              '#cbd5e1',
+                            marginTop:
+                              '4px'
+                          }}
+                        >
+                          → {item}
+                        </div>
+                      )
+                    )}
+                  </div>
+                </div>
+              )}
+
+              {/* LIVE TRANSCRIPT */}
+
+              {isRecording && (
+                <div
+                  style={{
+                    background:
+                      '#111827',
+                    border:
+                      '1px solid #10b981',
+                    padding:
+                      '12px',
+                    borderRadius:
+                      '8px',
+                    marginBottom:
+                      '10px'
+                  }}
+                >
+                  <div
+                    style={{
+                      color:
+                        '#10b981',
+                      fontSize:
+                        '10px',
+                      fontWeight:
+                        800,
+                      marginBottom:
+                        '5px'
+                    }}
+                  >
+                    LIVE TRANSCRIPT
+                  </div>
+
+                  <div
+                    style={{
+                      fontSize:
+                        '13px',
+                      color:
+                        '#e2e8f0'
+                    }}
+                  >
+                    {userInput ||
+                      'Listening...'}
+                  </div>
+                </div>
+              )}
+
+              {/* CONTROLS */}
+
+              {interviewStarted && (
+                <>
+                  <div
+                    style={{
+                      display:
+                        'flex',
+                      gap:
+                        '8px'
+                    }}
+                  >
+                    <button
+                      onClick={
+                        isRecording
+                          ? stopRecordingAndAnalyze
+                          : startRecording
+                      }
+                      disabled={
+                        isSpeaking ||
+                        isAnalyzing
+                      }
+                      style={{
+                        flex:
+                          1,
+                        padding:
+                          '13px',
+                        border:
+                          'none',
+                        borderRadius:
+                          '8px',
+                        background:
+                          isRecording
+                            ? '#dc2626'
+                            : '#10b981',
+                        color:
+                          '#fff',
+                        fontWeight:
+                          800,
+                        cursor:
+                          isSpeaking ||
+                          isAnalyzing
+                            ? 'not-allowed'
+                            : 'pointer'
+                      }}
+                    >
+                      {isRecording
+                        ? '⏹️ Stop & Analyze Answer'
+                        : isAnalyzing
+                        ? '🧠 Analyzing...'
+                        : '🎙️ Answer Question'}
+                    </button>
+
+                    <button
+                      onClick={
+                        stopInterview
+                      }
+                      style={{
+                        padding:
+                          '13px 18px',
+                        background:
+                          '#7f1d1d',
+                        color:
+                          '#fff',
+                        border:
+                          '1px solid #ef4444',
+                        borderRadius:
+                          '8px',
+                        fontWeight:
+                          700,
+                        cursor:
+                          'pointer'
+                      }}
+                    >
+                      End
+                    </button>
+                  </div>
+
+                  {/* TEXT FALLBACK */}
+
+                  <div
+                    style={{
+                      display:
+                        'flex',
+                      gap:
+                        '8px',
+                      marginTop:
+                        '8px'
+                    }}
+                  >
+                    <input
+                      value={
+                        isRecording
+                          ? ''
+                          : userInput
+                      }
+                      onChange={(e) =>
+                        setUserInput(
+                          e.target
+                            .value
+                        )
+                      }
+                      disabled={
+                        isRecording ||
+                        isSpeaking ||
+                        isAnalyzing
+                      }
+                      placeholder="Or type your answer here..."
+                      style={{
+                        flex: 1,
+                        padding:
+                          '11px',
+                        background:
+                          '#0f172a',
+                        color:
+                          '#fff',
+                        border:
+                          '1px solid #334155',
+                        borderRadius:
+                          '6px',
+                        boxSizing:
+                          'border-box'
+                      }}
+                    />
+
+                    <button
+                      onClick={() => {
+                        const answer =
+                          userInput.trim();
+
+                        if (
+                          answer
+                        ) {
+                          analyzeAndContinue(
+                            answer
+                          );
+
+                          setUserInput(
+                            ''
+                          );
+                        }
+                      }}
+                      disabled={
+                        !userInput.trim() ||
+                        isRecording ||
+                        isSpeaking ||
+                        isAnalyzing
+                      }
+                      style={{
+                        padding:
+                          '11px 18px',
+                        background:
+                          '#0284c7',
+                        color:
+                          '#fff',
+                        border:
+                          'none',
+                        borderRadius:
+                          '6px',
+                        fontWeight:
+                          700,
+                        cursor:
+                          'pointer'
+                      }}
+                    >
+                      Analyze
+                    </button>
+                  </div>
+                </>
+              )}
+
+              {/* STATUS */}
+
+              <div
+                style={{
+                  marginTop:
+                    '12px',
+                  textAlign:
+                    'center',
+                  color:
+                    '#64748b',
+                  fontSize:
+                    '10px'
+                }}
+              >
+                The interviewer analyzes
+                your answer before asking
+                the next question.
+              </div>
+            </div>
+
+            {/* =================================================
+                INTERVIEW SUMMARY
+            ================================================= */}
+
+            {interviewAnswers.length >
+              0 && (
+              <div
+                style={{
+                  marginTop:
+                    '20px',
+                  background:
+                    '#1e293b',
+                  padding:
+                    '20px',
+                  borderRadius:
+                    '10px'
+                }}
+              >
+                <h3
+                  style={{
+                    marginTop: 0,
+                    color:
+                      '#38bdf8'
+                  }}
+                >
+                  📈 Interview Progress
+                </h3>
+
+                <div
+                  style={{
+                    display:
+                      'grid',
+                    gridTemplateColumns:
+                      'repeat(auto-fit, minmax(130px, 1fr))',
+                    gap:
+                      '10px'
+                  }}
+                >
+                  {interviewAnswers.map(
+                    (
+                      item,
+                      index
+                    ) => (
+                      <div
+                        key={
+                          index
+                        }
+                        style={{
+                          background:
+                            '#0f172a',
+                          padding:
+                            '14px',
+                          borderRadius:
+                            '8px',
+                          textAlign:
+                            'center'
+                        }}
+                      >
+                        <div
+                          style={{
+                            color:
+                              '#64748b',
+                            fontSize:
+                              '11px'
+                          }}
+                        >
+                          Answer{' '}
+                          {index +
+                            1}
+                        </div>
+
+                        <div
+                          style={{
+                            fontSize:
+                              '24px',
+                            fontWeight:
+                              800,
+                            color:
+                              item
+                                .analysis
+                                .score >=
+                              75
+                                ? '#4ade80'
+                                : item
+                                    .analysis
+                                    .score >=
+                                  55
+                                ? '#facc15'
+                                : '#f87171'
+                          }}
+                        >
+                          {
+                            item
+                              .analysis
+                              .score
+                          }
+                        </div>
+                      </div>
+                    )
+                  )}
+                </div>
+              </div>
+            )}
+          </div>
+        )}
+      </div>
     </div>
-    <section className="tips-panel panel"><div className="section-kicker">PRACTICAL THINGS TO TRY</div><h2>Keep these in your back pocket.</h2><ol>{evaluation.tips.map((tip, index) => <li key={index}><span>0{index + 1}</span>{tip}</li>)}</ol><button className="next-button retry-interview" onClick={onRetry} data-testid="button-retry-interview"><RotateCcw size={15} /> Practice again</button></section>
-  </section>;
+  );
 }
-
-function ConceptCard({ title, items, good, testId }: { title: string; items: string[]; good?: boolean; testId: string }) {
-  return <section className={`concept-card panel ${good ? 'good' : ''}`} data-testid={testId}><span className="concept-icon">{good ? <Check size={15} /> : <ArrowRight size={15} />}</span><h3>{title}</h3>{items.length ? <ul>{items.map((item, index) => <li key={index}>{item}</li>)}</ul> : <p className="concept-empty">Nothing specific to add here yet. That’s okay—use the tips below for a next try.</p>}</section>;
-}
-
-function Router() {
-  return <Switch><Route path="/"><Home /></Route><Route path="/interview"><Interview /></Route><Route><NotFound /></Route></Switch>;
-}
-
-function App() {
-  return <QueryClientProvider client={queryClient}><TooltipProvider><WouterRouter base={import.meta.env.BASE_URL.replace(/\/$/, '')}><ErrorBoundary><AppShell><Router /></AppShell></ErrorBoundary></WouterRouter><Toaster /></TooltipProvider></QueryClientProvider>;
-}
-
-export default App;
