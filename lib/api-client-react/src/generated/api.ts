@@ -22,6 +22,10 @@ import type {
 import type {
   ApiError,
   HealthStatus,
+  MockInterviewEvaluation,
+  MockInterviewEvaluationInput,
+  MockInterviewQuestions,
+  MockInterviewQuestionsInput,
   SkillTwinAnalysis,
   SkillTwinAnalysisInput
 } from './api.schemas';
@@ -140,8 +144,8 @@ export const getAnalyzeSkillTwinUrl = () => {
 }
 
 /**
- * Compares current skills to role requirements and creates a customized 30/60/90-day plan using OpenRouter.
- * @summary Analyze readiness for a target role
+ * Generates role-specific skill requirements, detailed career feedback, and a 30/60/90-day plan.
+ * @summary Analyze readiness for any target role
  */
 export const analyzeSkillTwin = async (skillTwinAnalysisInput: SkillTwinAnalysisInput, options?: Parameters<typeof customFetch>[1]): Promise<SkillTwinAnalysis> => {
 
@@ -207,7 +211,7 @@ const {mutation: mutationOptions, request: requestOptions} = options ?
     export type AnalyzeSkillTwinMutationVariables = {data: BodyType<SkillTwinAnalysisInput>}
 
     /**
- * @summary Analyze readiness for a target role
+ * @summary Analyze readiness for any target role
  */
 export const useAnalyzeSkillTwin = <TError = ErrorType<ApiError>,
     TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof analyzeSkillTwin>>, TError,AnalyzeSkillTwinMutationVariables, TContext>, request?: SecondParameter<typeof customFetch>}
@@ -218,5 +222,181 @@ export const useAnalyzeSkillTwin = <TError = ErrorType<ApiError>,
         TContext
       > => {
       return useMutation(getAnalyzeSkillTwinMutationOptions(options));
+    }
+
+export const getGenerateMockInterviewUrl = () => {
+
+
+
+
+  return `/api/skilltwin/interview/questions`
+}
+
+/**
+ * @summary Generate a role and company specific mock interview
+ */
+export const generateMockInterview = async (mockInterviewQuestionsInput: MockInterviewQuestionsInput, options?: Parameters<typeof customFetch>[1]): Promise<MockInterviewQuestions> => {
+
+    const getHeaders = (h?: NonNullable<RequestInit['headers']>): Record<string, string | readonly string[]> => {
+    if (!h) return {};
+    if (h instanceof Headers) return Object.fromEntries(h.entries());
+    if (Symbol.iterator in h) {
+      return Object.fromEntries(
+        Array.from(h as Iterable<Iterable<string>>, (entry) => Array.from(entry) as [string, string]),
+      );
+    }
+    const headers: Record<string, string | readonly string[]> = {};
+    for (const [name, value] of Object.entries<string | readonly string[] | undefined>(h)) {
+      if (value !== undefined) headers[name] = value;
+    }
+    return headers;
+  };
+return customFetch<MockInterviewQuestions>(getGenerateMockInterviewUrl(),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...getHeaders(options?.headers) },
+    body: JSON.stringify(mockInterviewQuestionsInput)
+  }
+);}
+
+
+
+
+
+export const getGenerateMockInterviewMutationKey = () => ['generateMockInterview'] as const;
+
+export const getGenerateMockInterviewMutationOptions = <TError = ErrorType<ApiError>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof generateMockInterview>>, TError,GenerateMockInterviewMutationVariables, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof generateMockInterview>>, TError,GenerateMockInterviewMutationVariables, TContext> => {
+
+const mutationKey = getGenerateMockInterviewMutationKey();
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof generateMockInterview>>, GenerateMockInterviewMutationVariables> = (props) => {
+          const {data} = props ?? {};
+
+          return  generateMockInterview(data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type GenerateMockInterviewMutationResult = NonNullable<Awaited<ReturnType<typeof generateMockInterview>>>
+    export type GenerateMockInterviewMutationBody = BodyType<MockInterviewQuestionsInput>
+    export type GenerateMockInterviewMutationError = ErrorType<ApiError>
+    export type GenerateMockInterviewMutationVariables = {data: BodyType<MockInterviewQuestionsInput>}
+
+    /**
+ * @summary Generate a role and company specific mock interview
+ */
+export const useGenerateMockInterview = <TError = ErrorType<ApiError>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof generateMockInterview>>, TError,GenerateMockInterviewMutationVariables, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof generateMockInterview>>,
+        TError,
+        GenerateMockInterviewMutationVariables,
+        TContext
+      > => {
+      return useMutation(getGenerateMockInterviewMutationOptions(options));
+    }
+
+export const getEvaluateMockInterviewUrl = () => {
+
+
+
+
+  return `/api/skilltwin/interview/evaluate`
+}
+
+/**
+ * @summary Evaluate mock interview answers
+ */
+export const evaluateMockInterview = async (mockInterviewEvaluationInput: MockInterviewEvaluationInput, options?: Parameters<typeof customFetch>[1]): Promise<MockInterviewEvaluation> => {
+
+    const getHeaders = (h?: NonNullable<RequestInit['headers']>): Record<string, string | readonly string[]> => {
+    if (!h) return {};
+    if (h instanceof Headers) return Object.fromEntries(h.entries());
+    if (Symbol.iterator in h) {
+      return Object.fromEntries(
+        Array.from(h as Iterable<Iterable<string>>, (entry) => Array.from(entry) as [string, string]),
+      );
+    }
+    const headers: Record<string, string | readonly string[]> = {};
+    for (const [name, value] of Object.entries<string | readonly string[] | undefined>(h)) {
+      if (value !== undefined) headers[name] = value;
+    }
+    return headers;
+  };
+return customFetch<MockInterviewEvaluation>(getEvaluateMockInterviewUrl(),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...getHeaders(options?.headers) },
+    body: JSON.stringify(mockInterviewEvaluationInput)
+  }
+);}
+
+
+
+
+
+export const getEvaluateMockInterviewMutationKey = () => ['evaluateMockInterview'] as const;
+
+export const getEvaluateMockInterviewMutationOptions = <TError = ErrorType<ApiError>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof evaluateMockInterview>>, TError,EvaluateMockInterviewMutationVariables, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof evaluateMockInterview>>, TError,EvaluateMockInterviewMutationVariables, TContext> => {
+
+const mutationKey = getEvaluateMockInterviewMutationKey();
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof evaluateMockInterview>>, EvaluateMockInterviewMutationVariables> = (props) => {
+          const {data} = props ?? {};
+
+          return  evaluateMockInterview(data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type EvaluateMockInterviewMutationResult = NonNullable<Awaited<ReturnType<typeof evaluateMockInterview>>>
+    export type EvaluateMockInterviewMutationBody = BodyType<MockInterviewEvaluationInput>
+    export type EvaluateMockInterviewMutationError = ErrorType<ApiError>
+    export type EvaluateMockInterviewMutationVariables = {data: BodyType<MockInterviewEvaluationInput>}
+
+    /**
+ * @summary Evaluate mock interview answers
+ */
+export const useEvaluateMockInterview = <TError = ErrorType<ApiError>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof evaluateMockInterview>>, TError,EvaluateMockInterviewMutationVariables, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof evaluateMockInterview>>,
+        TError,
+        EvaluateMockInterviewMutationVariables,
+        TContext
+      > => {
+      return useMutation(getEvaluateMockInterviewMutationOptions(options));
     }
 

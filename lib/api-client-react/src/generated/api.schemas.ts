@@ -9,19 +9,12 @@ export interface HealthStatus {
   status: string;
 }
 
-export type SkillName = typeof SkillName[keyof typeof SkillName];
-
-
-export const SkillName = {
-  Python: 'Python',
-  SQL: 'SQL',
-  Excel: 'Excel',
-  Statistics: 'Statistics',
-  Communication: 'Communication',
-} as const;
-
 export interface SkillLevelInput {
-  skill: SkillName;
+  /**
+     * @minLength 1
+     * @maxLength 80
+     */
+  skill: string;
   /**
      * @minimum 0
      * @maximum 100
@@ -38,14 +31,15 @@ export interface SkillTwinAnalysisInput {
   /** @maxLength 16000 */
   resumeText?: string;
   /**
-     * @minItems 1
-     * @maxItems 5
+     * @minItems 5
+     * @maxItems 7
      */
-  skills: SkillLevelInput[];
+  skillLevels?: SkillLevelInput[];
 }
 
 export interface SkillGap {
-  skill: SkillName;
+  /** @maxLength 80 */
+  skill: string;
   /**
      * @minimum 0
      * @maximum 100
@@ -56,26 +50,32 @@ export interface SkillGap {
      * @maximum 100
      */
   required: number;
-  /** @maxLength 240 */
+  /** @maxLength 320 */
   rationale: string;
+  /**
+     * @maxItems 6
+     * @items.maxLength 80
+     */
+  missingTools?: string[];
 }
 
-export type RoadmapActionEffort = typeof RoadmapActionEffort[keyof typeof RoadmapActionEffort];
-
-
-export const RoadmapActionEffort = {
-  low: 'low',
-  medium: 'medium',
-  high: 'high',
-} as const;
-
-export interface RoadmapAction {
-  /** @maxLength 120 */
-  title: string;
+export interface WeeklyMilestone {
+  /** @maxLength 30 */
+  week: string;
   /** @maxLength 320 */
-  description: string;
-  skill: SkillName;
-  effort: RoadmapActionEffort;
+  goal: string;
+  /** @maxLength 220 */
+  deliverable: string;
+}
+
+export interface LearningResource {
+  /** @maxLength 140 */
+  title: string;
+  /** @maxLength 100 */
+  provider: string;
+  /** @maxLength 220 */
+  reason: string;
+  free: boolean;
 }
 
 export type RoadmapPhasePhase = typeof RoadmapPhasePhase[keyof typeof RoadmapPhasePhase];
@@ -94,10 +94,23 @@ export interface RoadmapPhase {
   /** @maxLength 220 */
   focus: string;
   /**
-     * @minItems 2
+     * @minItems 4
      * @maxItems 4
      */
-  actions: RoadmapAction[];
+  weeklyMilestones: WeeklyMilestone[];
+  /** @maxLength 360 */
+  portfolioProject: string;
+  /**
+     * @minItems 2
+     * @maxItems 3
+     */
+  resources: LearningResource[];
+  /**
+     * @minItems 1
+     * @maxItems 3
+     * @items.maxLength 260
+     */
+  resumeTips: string[];
 }
 
 export type SkillTwinAnalysisSource = typeof SkillTwinAnalysisSource[keyof typeof SkillTwinAnalysisSource];
@@ -116,11 +129,28 @@ export interface SkillTwinAnalysis {
      * @maximum 100
      */
   readiness: number;
-  /** @maxLength 320 */
+  /**
+     * @minimum 0
+     * @maximum 100
+     */
+  matchScore: number;
+  /** @maxLength 800 */
   summary: string;
   /**
      * @minItems 1
-     * @maxItems 5
+     * @maxItems 6
+     * @items.maxLength 320
+     */
+  strengths: string[];
+  /**
+     * @minItems 1
+     * @maxItems 6
+     * @items.maxLength 320
+     */
+  shortfalls: string[];
+  /**
+     * @minItems 5
+     * @maxItems 7
      */
   gaps: SkillGap[];
   /**
@@ -128,6 +158,105 @@ export interface SkillTwinAnalysis {
      * @maxItems 3
      */
   roadmap: RoadmapPhase[];
+}
+
+export interface MockInterviewQuestionsInput {
+  /**
+     * @minLength 2
+     * @maxLength 100
+     */
+  targetRole: string;
+  /** @maxLength 100 */
+  targetCompany?: string;
+}
+
+export type MockInterviewQuestionsSource = typeof MockInterviewQuestionsSource[keyof typeof MockInterviewQuestionsSource];
+
+
+export const MockInterviewQuestionsSource = {
+  ai: 'ai',
+  local: 'local',
+} as const;
+
+export interface MockInterviewQuestions {
+  source: MockInterviewQuestionsSource;
+  targetRole: string;
+  targetCompany: string;
+  /**
+     * @minItems 3
+     * @maxItems 5
+     * @items.maxLength 500
+     */
+  questions: string[];
+}
+
+export interface InterviewAnswer {
+  /** @maxLength 500 */
+  question: string;
+  /** @maxLength 5000 */
+  answer: string;
+}
+
+export interface MockInterviewEvaluationInput {
+  /**
+     * @minLength 2
+     * @maxLength 100
+     */
+  targetRole: string;
+  /** @maxLength 100 */
+  targetCompany?: string;
+  /**
+     * @minItems 3
+     * @maxItems 5
+     */
+  responses: InterviewAnswer[];
+}
+
+export type MockInterviewEvaluationSource = typeof MockInterviewEvaluationSource[keyof typeof MockInterviewEvaluationSource];
+
+
+export const MockInterviewEvaluationSource = {
+  ai: 'ai',
+  local: 'local',
+} as const;
+
+export interface MockInterviewEvaluation {
+  source: MockInterviewEvaluationSource;
+  targetRole: string;
+  targetCompany: string;
+  /**
+     * @minimum 0
+     * @maximum 100
+     */
+  overallScore: number;
+  /**
+     * @minimum 0
+     * @maximum 100
+     */
+  clarityScore: number;
+  /**
+     * @minimum 0
+     * @maximum 100
+     */
+  technicalAccuracy: number;
+  /**
+     * @maxItems 10
+     * @items.maxLength 100
+     */
+  conceptsCovered: string[];
+  /**
+     * @maxItems 10
+     * @items.maxLength 100
+     */
+  missedConcepts: string[];
+  /** @maxLength 700 */
+  summary: string;
+  /**
+     * @minItems 2
+     * @maxItems 8
+     * @items.maxLength 320
+     */
+  tips: string[];
 }
 
 export interface ApiError {

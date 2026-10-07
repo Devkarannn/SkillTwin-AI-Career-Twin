@@ -5,10 +5,13 @@
  * API specification
  * OpenAPI spec version: 0.1.0
  */
-import type { SkillName } from './skillName';
 
 export interface SkillLevelInput {
-  skill: SkillName;
+  /**
+     * @minLength 1
+     * @maxLength 80
+     */
+  skill: string;
   /**
      * @minimum 0
      * @maximum 100

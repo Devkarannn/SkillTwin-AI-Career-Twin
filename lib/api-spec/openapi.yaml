@@ -30,8 +30,8 @@ paths:
     post:
       operationId: analyzeSkillTwin
       tags: [skilltwin]
-      summary: Analyze readiness for a target role
-      description: Compares current skills to role requirements and creates a customized 30/60/90-day plan using OpenRouter.
+      summary: Analyze readiness for any target role
+      description: Generates role-specific skill requirements, detailed career feedback, and a 30/60/90-day plan.
       requestBody:
         required: true
         content:
@@ -40,7 +40,7 @@ paths:
               $ref: "#/components/schemas/SkillTwinAnalysisInput"
       responses:
         "200":
-          description: Personalized readiness analysis
+          description: Role-specific readiness analysis
           content:
             application/json:
               schema:
@@ -51,14 +51,50 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/ApiError"
-        "503":
-          description: OpenRouter is not configured
+  /skilltwin/interview/questions:
+    post:
+      operationId: generateMockInterview
+      tags: [skilltwin]
+      summary: Generate a role and company specific mock interview
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/MockInterviewQuestionsInput"
+      responses:
+        "200":
+          description: Interview questions ready
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/MockInterviewQuestions"
+        "400":
+          description: Invalid interview request
           content:
             application/json:
               schema:
                 $ref: "#/components/schemas/ApiError"
-        "502":
-          description: OpenRouter analysis failed
+  /skilltwin/interview/evaluate:
+    post:
+      operationId: evaluateMockInterview
+      tags: [skilltwin]
+      summary: Evaluate mock interview answers
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/MockInterviewEvaluationInput"
+      responses:
+        "200":
+          description: Interview feedback ready
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/MockInterviewEvaluation"
+        "400":
+          description: Invalid interview evaluation
           content:
             application/json:
               schema:
@@ -72,14 +108,13 @@ components:
           type: string
       required:
         - status
-    SkillName:
-      type: string
-      enum: [Python, SQL, Excel, Statistics, Communication]
     SkillLevelInput:
       type: object
       properties:
         skill:
-          $ref: "#/components/schemas/SkillName"
+          type: string
+          minLength: 1
+          maxLength: 80
         current:
           type: integer
           minimum: 0
@@ -95,18 +130,19 @@ components:
         resumeText:
           type: string
           maxLength: 16000
-        skills:
+        skillLevels:
           type: array
           items:
             $ref: "#/components/schemas/SkillLevelInput"
-          minItems: 1
-          maxItems: 5
-      required: [targetRole, skills]
+          minItems: 5
+          maxItems: 7
+      required: [targetRole]
     SkillGap:
       type: object
       properties:
         skill:
-          $ref: "#/components/schemas/SkillName"
+          type: string
+          maxLength: 80
         current:
           type: integer
           minimum: 0
@@ -117,23 +153,42 @@ components:
           maximum: 100
         rationale:
           type: string
-          maxLength: 240
+          maxLength: 320
+        missingTools:
+          type: array
+          items:
+            type: string
+            maxLength: 80
+          maxItems: 6
       required: [skill, current, required, rationale]
-    RoadmapAction:
+    WeeklyMilestone:
+      type: object
+      properties:
+        week:
+          type: string
+          maxLength: 30
+        goal:
+          type: string
+          maxLength: 320
+        deliverable:
+          type: string
+          maxLength: 220
+      required: [week, goal, deliverable]
+    LearningResource:
       type: object
       properties:
         title:
           type: string
-          maxLength: 120
-        description:
+          maxLength: 140
+        provider:
           type: string
-          maxLength: 320
-        skill:
-          $ref: "#/components/schemas/SkillName"
-        effort:
+          maxLength: 100
+        reason:
           type: string
-          enum: [low, medium, high]
-      required: [title, description, skill, effort]
+          maxLength: 220
+        free:
+          type: boolean
+      required: [title, provider, reason, free]
     RoadmapPhase:
       type: object
       properties:
@@ -146,13 +201,29 @@ components:
         focus:
           type: string
           maxLength: 220
-        actions:
+        weeklyMilestones:
           type: array
           items:
-            $ref: "#/components/schemas/RoadmapAction"
-          minItems: 2
+            $ref: "#/components/schemas/WeeklyMilestone"
+          minItems: 4
           maxItems: 4
-      required: [phase, title, focus, actions]
+        portfolioProject:
+          type: string
+          maxLength: 360
+        resources:
+          type: array
+          items:
+            $ref: "#/components/schemas/LearningResource"
+          minItems: 2
+          maxItems: 3
+        resumeTips:
+          type: array
+          items:
+            type: string
+            maxLength: 260
+          minItems: 1
+          maxItems: 3
+      required: [phase, title, focus, weeklyMilestones, portfolioProject, resources, resumeTips]
     SkillTwinAnalysis:
       type: object
       properties:
@@ -165,22 +236,141 @@ components:
           type: integer
           minimum: 0
           maximum: 100
+        matchScore:
+          type: integer
+          minimum: 0
+          maximum: 100
         summary:
           type: string
-          maxLength: 320
+          maxLength: 800
+        strengths:
+          type: array
+          items:
+            type: string
+            maxLength: 320
+          minItems: 1
+          maxItems: 6
+        shortfalls:
+          type: array
+          items:
+            type: string
+            maxLength: 320
+          minItems: 1
+          maxItems: 6
         gaps:
           type: array
           items:
             $ref: "#/components/schemas/SkillGap"
-          minItems: 1
-          maxItems: 5
+          minItems: 5
+          maxItems: 7
         roadmap:
           type: array
           items:
             $ref: "#/components/schemas/RoadmapPhase"
           minItems: 3
           maxItems: 3
-      required: [targetRole, source, readiness, summary, gaps, roadmap]
+      required: [targetRole, source, readiness, matchScore, summary, strengths, shortfalls, gaps, roadmap]
+    MockInterviewQuestionsInput:
+      type: object
+      properties:
+        targetRole:
+          type: string
+          minLength: 2
+          maxLength: 100
+        targetCompany:
+          type: string
+          maxLength: 100
+      required: [targetRole]
+    MockInterviewQuestions:
+      type: object
+      properties:
+        source:
+          type: string
+          enum: [ai, local]
+        targetRole:
+          type: string
+        targetCompany:
+          type: string
+        questions:
+          type: array
+          items:
+            type: string
+            maxLength: 500
+          minItems: 3
+          maxItems: 5
+      required: [source, targetRole, targetCompany, questions]
+    InterviewAnswer:
+      type: object
+      properties:
+        question:
+          type: string
+          maxLength: 500
+        answer:
+          type: string
+          maxLength: 5000
+      required: [question, answer]
+    MockInterviewEvaluationInput:
+      type: object
+      properties:
+        targetRole:
+          type: string
+          minLength: 2
+          maxLength: 100
+        targetCompany:
+          type: string
+          maxLength: 100
+        responses:
+          type: array
+          items:
+            $ref: "#/components/schemas/InterviewAnswer"
+          minItems: 3
+          maxItems: 5
+      required: [targetRole, responses]
+    MockInterviewEvaluation:
+      type: object
+      properties:
+        source:
+          type: string
+          enum: [ai, local]
+        targetRole:
+          type: string
+        targetCompany:
+          type: string
+        overallScore:
+          type: integer
+          minimum: 0
+          maximum: 100
+        clarityScore:
+          type: integer
+          minimum: 0
+          maximum: 100
+        technicalAccuracy:
+          type: integer
+          minimum: 0
+          maximum: 100
+        conceptsCovered:
+          type: array
+          items:
+            type: string
+            maxLength: 100
+          maxItems: 10
+        missedConcepts:
+          type: array
+          items:
+            type: string
+            maxLength: 100
+          maxItems: 10
+        summary:
+          type: string
+          maxLength: 700
+        tips:
+          type: array
+          items:
+            type: string
+            maxLength: 320
+          minItems: 2
+          maxItems: 8
+      required: [source, targetRole, targetCompany, overallScore, clarityScore, technicalAccuracy, conceptsCovered, missedConcepts, summary, tips]
     ApiError:
       type: object
       properties:

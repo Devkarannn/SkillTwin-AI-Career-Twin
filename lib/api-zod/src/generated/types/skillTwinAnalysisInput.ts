@@ -16,8 +16,8 @@ export interface SkillTwinAnalysisInput {
   /** @maxLength 16000 */
   resumeText?: string;
   /**
-     * @minItems 1
-     * @maxItems 5
+     * @minItems 5
+     * @maxItems 7
      */
-  skills: SkillLevelInput[];
+  skillLevels?: SkillLevelInput[];
 }

@@ -5,8 +5,9 @@
  * API specification
  * OpenAPI spec version: 0.1.0
  */
-import type { RoadmapAction } from './roadmapAction';
+import type { LearningResource } from './learningResource';
 import type { RoadmapPhasePhase } from './roadmapPhasePhase';
+import type { WeeklyMilestone } from './weeklyMilestone';
 
 export interface RoadmapPhase {
   phase: RoadmapPhasePhase;
@@ -15,8 +16,21 @@ export interface RoadmapPhase {
   /** @maxLength 220 */
   focus: string;
   /**
-     * @minItems 2
+     * @minItems 4
      * @maxItems 4
      */
-  actions: RoadmapAction[];
+  weeklyMilestones: WeeklyMilestone[];
+  /** @maxLength 360 */
+  portfolioProject: string;
+  /**
+     * @minItems 2
+     * @maxItems 3
+     */
+  resources: LearningResource[];
+  /**
+     * @minItems 1
+     * @maxItems 3
+     * @items.maxLength 260
+     */
+  resumeTips: string[];
 }

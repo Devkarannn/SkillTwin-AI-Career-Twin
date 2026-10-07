@@ -1,0 +1,21 @@
+Please perform a major upgrade to SkillTwin to make it an end-to-end AI career copilot:
+
+1. UNIVERSAL ROLE SEARCH & DYNAMIC SKILL GENERATION:
+- Replace the fixed role dropdown with an auto-suggesting search input that suggests roles from any field (Tech, Business, Finance, Design, Engineering, Healthcare, Marketing, Trades, etc.) as the user types, while allowing any custom role to be entered freely.
+- Do NOT use hardcoded skills. When 'Generate my analysis' is clicked, dynamically generate the top 5–7 core skills required specifically for that entered role (e.g., UI/UX Designer gets Figma & Prototyping; Financial Analyst gets Financial Modeling & Valuation; Chef gets Culinary Techniques & Food Safety).
+
+2. DEEP & EXPANDED ANALYSIS DISPLAY:
+- Make the output analysis significantly more comprehensive:
+  a. Match Score & Readiness Percentage.
+  b. Detailed Skill Breakdown: Current vs. Required levels with specific missing tools/technologies listed.
+  c. Strengths & Skill Shortfalls Summary: Highlight exactly what the student excels at vs. key resume gaps.
+  d. Comprehensive 30/60/90-Day Plan: Provide actionable weekly milestones, suggested real-world portfolio project ideas, recommended free learning resources/certifications, and targeted resume optimization tips.
+
+3. AI VOICE INTERVIEWER MODULE (NEW TAB / SECTION):
+- Add a dedicated "AI Mock Interview" section/tab in the dashboard.
+- The user can select their Target Role and enter a Target Company (e.g., "Data Analyst at Google" or "Product Manager at Spotify").
+- Feature a Siri-like Voice Interface using the browser's native Web Speech API (SpeechSynthesis for text-to-speech, SpeechRecognition for real-time microphone listening):
+  a. Voice Speech Output: The AI interviewer speaks the questions aloud to the student.
+  b. Continuous Listening: The AI listens to the student's verbal responses via microphone, transcribes them in real time, and accepts the answer when the student finishes speaking.
+  c. Dynamic Interviewing: Conduct a 3–5 question interview tailored specifically to the target role and company.
+  d. Post-Interview Performance Feedback: After the interview, generate a detailed evaluation showing response clarity score, technical accuracy, missing key industry buzzwords/concepts, and actionable tips to improve interview readiness.

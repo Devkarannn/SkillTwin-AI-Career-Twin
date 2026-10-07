@@ -5,10 +5,10 @@
  * API specification
  * OpenAPI spec version: 0.1.0
  */
-import type { SkillName } from './skillName';
 
 export interface SkillGap {
-  skill: SkillName;
+  /** @maxLength 80 */
+  skill: string;
   /**
      * @minimum 0
      * @maximum 100
@@ -19,6 +19,11 @@ export interface SkillGap {
      * @maximum 100
      */
   required: number;
-  /** @maxLength 240 */
+  /** @maxLength 320 */
   rationale: string;
+  /**
+     * @maxItems 6
+     * @items.maxLength 80
+     */
+  missingTools?: string[];
 }

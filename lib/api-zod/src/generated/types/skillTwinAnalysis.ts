@@ -17,11 +17,28 @@ export interface SkillTwinAnalysis {
      * @maximum 100
      */
   readiness: number;
-  /** @maxLength 320 */
+  /**
+     * @minimum 0
+     * @maximum 100
+     */
+  matchScore: number;
+  /** @maxLength 800 */
   summary: string;
   /**
      * @minItems 1
-     * @maxItems 5
+     * @maxItems 6
+     * @items.maxLength 320
+     */
+  strengths: string[];
+  /**
+     * @minItems 1
+     * @maxItems 6
+     * @items.maxLength 320
+     */
+  shortfalls: string[];
+  /**
+     * @minItems 5
+     * @maxItems 7
      */
   gaps: SkillGap[];
   /**

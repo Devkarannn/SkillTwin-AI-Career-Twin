@@ -18,34 +18,50 @@ export const HealthCheckResponse = zod.object({
 
 
 /**
- * Compares current skills to role requirements and creates a customized 30/60/90-day plan using OpenRouter.
- * @summary Analyze readiness for a target role
+ * Generates role-specific skill requirements, detailed career feedback, and a 30/60/90-day plan.
+ * @summary Analyze readiness for any target role
  */
 export const analyzeSkillTwinBodyTargetRoleMin = 2;
 export const analyzeSkillTwinBodyTargetRoleMax = 100;
 
 export const analyzeSkillTwinBodyResumeTextMax = 16000;
 
-export const analyzeSkillTwinBodySkillsItemCurrentMin = 0;
-export const analyzeSkillTwinBodySkillsItemCurrentMax = 100;
+export const analyzeSkillTwinBodySkillLevelsItemSkillMax = 80;
 
-export const analyzeSkillTwinBodySkillsMax = 5;
+export const analyzeSkillTwinBodySkillLevelsItemCurrentMin = 0;
+export const analyzeSkillTwinBodySkillLevelsItemCurrentMax = 100;
+
+export const analyzeSkillTwinBodySkillLevelsMin = 5;
+export const analyzeSkillTwinBodySkillLevelsMax = 7;
 
 
 
 export const AnalyzeSkillTwinBody = zod.object({
   "targetRole": zod.string().min(analyzeSkillTwinBodyTargetRoleMin).max(analyzeSkillTwinBodyTargetRoleMax),
   "resumeText": zod.string().max(analyzeSkillTwinBodyResumeTextMax).optional(),
-  "skills": zod.array(zod.object({
-  "skill": zod.enum(['Python', 'SQL', 'Excel', 'Statistics', 'Communication']),
-  "current": zod.number().int().min(analyzeSkillTwinBodySkillsItemCurrentMin).max(analyzeSkillTwinBodySkillsItemCurrentMax)
-})).min(1).max(analyzeSkillTwinBodySkillsMax)
+  "skillLevels": zod.array(zod.object({
+  "skill": zod.string().min(1).max(analyzeSkillTwinBodySkillLevelsItemSkillMax),
+  "current": zod.number().int().min(analyzeSkillTwinBodySkillLevelsItemCurrentMin).max(analyzeSkillTwinBodySkillLevelsItemCurrentMax)
+})).min(analyzeSkillTwinBodySkillLevelsMin).max(analyzeSkillTwinBodySkillLevelsMax).optional()
 })
 
 export const analyzeSkillTwinResponseReadinessMin = 0;
 export const analyzeSkillTwinResponseReadinessMax = 100;
 
-export const analyzeSkillTwinResponseSummaryMax = 320;
+export const analyzeSkillTwinResponseMatchScoreMin = 0;
+export const analyzeSkillTwinResponseMatchScoreMax = 100;
+
+export const analyzeSkillTwinResponseSummaryMax = 800;
+
+export const analyzeSkillTwinResponseStrengthsItemMax = 320;
+
+export const analyzeSkillTwinResponseStrengthsMax = 6;
+
+export const analyzeSkillTwinResponseShortfallsItemMax = 320;
+
+export const analyzeSkillTwinResponseShortfallsMax = 6;
+
+export const analyzeSkillTwinResponseGapsItemSkillMax = 80;
 
 export const analyzeSkillTwinResponseGapsItemCurrentMin = 0;
 export const analyzeSkillTwinResponseGapsItemCurrentMax = 100;
@@ -53,20 +69,42 @@ export const analyzeSkillTwinResponseGapsItemCurrentMax = 100;
 export const analyzeSkillTwinResponseGapsItemRequiredMin = 0;
 export const analyzeSkillTwinResponseGapsItemRequiredMax = 100;
 
-export const analyzeSkillTwinResponseGapsItemRationaleMax = 240;
+export const analyzeSkillTwinResponseGapsItemRationaleMax = 320;
 
-export const analyzeSkillTwinResponseGapsMax = 5;
+export const analyzeSkillTwinResponseGapsItemMissingToolsItemMax = 80;
+
+export const analyzeSkillTwinResponseGapsItemMissingToolsMax = 6;
+
+export const analyzeSkillTwinResponseGapsMin = 5;
+export const analyzeSkillTwinResponseGapsMax = 7;
 
 export const analyzeSkillTwinResponseRoadmapItemTitleMax = 100;
 
 export const analyzeSkillTwinResponseRoadmapItemFocusMax = 220;
 
-export const analyzeSkillTwinResponseRoadmapItemActionsItemTitleMax = 120;
+export const analyzeSkillTwinResponseRoadmapItemWeeklyMilestonesItemWeekMax = 30;
 
-export const analyzeSkillTwinResponseRoadmapItemActionsItemDescriptionMax = 320;
+export const analyzeSkillTwinResponseRoadmapItemWeeklyMilestonesItemGoalMax = 320;
 
-export const analyzeSkillTwinResponseRoadmapItemActionsMin = 2;
-export const analyzeSkillTwinResponseRoadmapItemActionsMax = 4;
+export const analyzeSkillTwinResponseRoadmapItemWeeklyMilestonesItemDeliverableMax = 220;
+
+export const analyzeSkillTwinResponseRoadmapItemWeeklyMilestonesMin = 4;
+export const analyzeSkillTwinResponseRoadmapItemWeeklyMilestonesMax = 4;
+
+export const analyzeSkillTwinResponseRoadmapItemPortfolioProjectMax = 360;
+
+export const analyzeSkillTwinResponseRoadmapItemResourcesItemTitleMax = 140;
+
+export const analyzeSkillTwinResponseRoadmapItemResourcesItemProviderMax = 100;
+
+export const analyzeSkillTwinResponseRoadmapItemResourcesItemReasonMax = 220;
+
+export const analyzeSkillTwinResponseRoadmapItemResourcesMin = 2;
+export const analyzeSkillTwinResponseRoadmapItemResourcesMax = 3;
+
+export const analyzeSkillTwinResponseRoadmapItemResumeTipsItemMax = 260;
+
+export const analyzeSkillTwinResponseRoadmapItemResumeTipsMax = 3;
 
 export const analyzeSkillTwinResponseRoadmapMin = 3;
 export const analyzeSkillTwinResponseRoadmapMax = 3;
@@ -77,24 +115,131 @@ export const AnalyzeSkillTwinResponse = zod.object({
   "targetRole": zod.string(),
   "source": zod.enum(['ai', 'local']),
   "readiness": zod.number().int().min(analyzeSkillTwinResponseReadinessMin).max(analyzeSkillTwinResponseReadinessMax),
+  "matchScore": zod.number().int().min(analyzeSkillTwinResponseMatchScoreMin).max(analyzeSkillTwinResponseMatchScoreMax),
   "summary": zod.string().max(analyzeSkillTwinResponseSummaryMax),
+  "strengths": zod.array(zod.string().max(analyzeSkillTwinResponseStrengthsItemMax)).min(1).max(analyzeSkillTwinResponseStrengthsMax),
+  "shortfalls": zod.array(zod.string().max(analyzeSkillTwinResponseShortfallsItemMax)).min(1).max(analyzeSkillTwinResponseShortfallsMax),
   "gaps": zod.array(zod.object({
-  "skill": zod.enum(['Python', 'SQL', 'Excel', 'Statistics', 'Communication']),
+  "skill": zod.string().max(analyzeSkillTwinResponseGapsItemSkillMax),
   "current": zod.number().int().min(analyzeSkillTwinResponseGapsItemCurrentMin).max(analyzeSkillTwinResponseGapsItemCurrentMax),
   "required": zod.number().int().min(analyzeSkillTwinResponseGapsItemRequiredMin).max(analyzeSkillTwinResponseGapsItemRequiredMax),
-  "rationale": zod.string().max(analyzeSkillTwinResponseGapsItemRationaleMax)
-})).min(1).max(analyzeSkillTwinResponseGapsMax),
+  "rationale": zod.string().max(analyzeSkillTwinResponseGapsItemRationaleMax),
+  "missingTools": zod.array(zod.string().max(analyzeSkillTwinResponseGapsItemMissingToolsItemMax)).max(analyzeSkillTwinResponseGapsItemMissingToolsMax).optional()
+})).min(analyzeSkillTwinResponseGapsMin).max(analyzeSkillTwinResponseGapsMax),
   "roadmap": zod.array(zod.object({
   "phase": zod.enum(['30 days', '60 days', '90 days']),
   "title": zod.string().max(analyzeSkillTwinResponseRoadmapItemTitleMax),
   "focus": zod.string().max(analyzeSkillTwinResponseRoadmapItemFocusMax),
-  "actions": zod.array(zod.object({
-  "title": zod.string().max(analyzeSkillTwinResponseRoadmapItemActionsItemTitleMax),
-  "description": zod.string().max(analyzeSkillTwinResponseRoadmapItemActionsItemDescriptionMax),
-  "skill": zod.enum(['Python', 'SQL', 'Excel', 'Statistics', 'Communication']),
-  "effort": zod.enum(['low', 'medium', 'high'])
-})).min(analyzeSkillTwinResponseRoadmapItemActionsMin).max(analyzeSkillTwinResponseRoadmapItemActionsMax)
+  "weeklyMilestones": zod.array(zod.object({
+  "week": zod.string().max(analyzeSkillTwinResponseRoadmapItemWeeklyMilestonesItemWeekMax),
+  "goal": zod.string().max(analyzeSkillTwinResponseRoadmapItemWeeklyMilestonesItemGoalMax),
+  "deliverable": zod.string().max(analyzeSkillTwinResponseRoadmapItemWeeklyMilestonesItemDeliverableMax)
+})).min(analyzeSkillTwinResponseRoadmapItemWeeklyMilestonesMin).max(analyzeSkillTwinResponseRoadmapItemWeeklyMilestonesMax),
+  "portfolioProject": zod.string().max(analyzeSkillTwinResponseRoadmapItemPortfolioProjectMax),
+  "resources": zod.array(zod.object({
+  "title": zod.string().max(analyzeSkillTwinResponseRoadmapItemResourcesItemTitleMax),
+  "provider": zod.string().max(analyzeSkillTwinResponseRoadmapItemResourcesItemProviderMax),
+  "reason": zod.string().max(analyzeSkillTwinResponseRoadmapItemResourcesItemReasonMax),
+  "free": zod.boolean()
+})).min(analyzeSkillTwinResponseRoadmapItemResourcesMin).max(analyzeSkillTwinResponseRoadmapItemResourcesMax),
+  "resumeTips": zod.array(zod.string().max(analyzeSkillTwinResponseRoadmapItemResumeTipsItemMax)).min(1).max(analyzeSkillTwinResponseRoadmapItemResumeTipsMax)
 })).min(analyzeSkillTwinResponseRoadmapMin).max(analyzeSkillTwinResponseRoadmapMax)
+})
+
+
+/**
+ * @summary Generate a role and company specific mock interview
+ */
+export const generateMockInterviewBodyTargetRoleMin = 2;
+export const generateMockInterviewBodyTargetRoleMax = 100;
+
+export const generateMockInterviewBodyTargetCompanyMax = 100;
+
+
+
+export const GenerateMockInterviewBody = zod.object({
+  "targetRole": zod.string().min(generateMockInterviewBodyTargetRoleMin).max(generateMockInterviewBodyTargetRoleMax),
+  "targetCompany": zod.string().max(generateMockInterviewBodyTargetCompanyMax).optional()
+})
+
+export const generateMockInterviewResponseQuestionsItemMax = 500;
+
+export const generateMockInterviewResponseQuestionsMin = 3;
+export const generateMockInterviewResponseQuestionsMax = 5;
+
+
+
+export const GenerateMockInterviewResponse = zod.object({
+  "source": zod.enum(['ai', 'local']),
+  "targetRole": zod.string(),
+  "targetCompany": zod.string(),
+  "questions": zod.array(zod.string().max(generateMockInterviewResponseQuestionsItemMax)).min(generateMockInterviewResponseQuestionsMin).max(generateMockInterviewResponseQuestionsMax)
+})
+
+
+/**
+ * @summary Evaluate mock interview answers
+ */
+export const evaluateMockInterviewBodyTargetRoleMin = 2;
+export const evaluateMockInterviewBodyTargetRoleMax = 100;
+
+export const evaluateMockInterviewBodyTargetCompanyMax = 100;
+
+export const evaluateMockInterviewBodyResponsesItemQuestionMax = 500;
+
+export const evaluateMockInterviewBodyResponsesItemAnswerMax = 5000;
+
+export const evaluateMockInterviewBodyResponsesMin = 3;
+export const evaluateMockInterviewBodyResponsesMax = 5;
+
+
+
+export const EvaluateMockInterviewBody = zod.object({
+  "targetRole": zod.string().min(evaluateMockInterviewBodyTargetRoleMin).max(evaluateMockInterviewBodyTargetRoleMax),
+  "targetCompany": zod.string().max(evaluateMockInterviewBodyTargetCompanyMax).optional(),
+  "responses": zod.array(zod.object({
+  "question": zod.string().max(evaluateMockInterviewBodyResponsesItemQuestionMax),
+  "answer": zod.string().max(evaluateMockInterviewBodyResponsesItemAnswerMax)
+})).min(evaluateMockInterviewBodyResponsesMin).max(evaluateMockInterviewBodyResponsesMax)
+})
+
+export const evaluateMockInterviewResponseOverallScoreMin = 0;
+export const evaluateMockInterviewResponseOverallScoreMax = 100;
+
+export const evaluateMockInterviewResponseClarityScoreMin = 0;
+export const evaluateMockInterviewResponseClarityScoreMax = 100;
+
+export const evaluateMockInterviewResponseTechnicalAccuracyMin = 0;
+export const evaluateMockInterviewResponseTechnicalAccuracyMax = 100;
+
+export const evaluateMockInterviewResponseConceptsCoveredItemMax = 100;
+
+export const evaluateMockInterviewResponseConceptsCoveredMax = 10;
+
+export const evaluateMockInterviewResponseMissedConceptsItemMax = 100;
+
+export const evaluateMockInterviewResponseMissedConceptsMax = 10;
+
+export const evaluateMockInterviewResponseSummaryMax = 700;
+
+export const evaluateMockInterviewResponseTipsItemMax = 320;
+
+export const evaluateMockInterviewResponseTipsMin = 2;
+export const evaluateMockInterviewResponseTipsMax = 8;
+
+
+
+export const EvaluateMockInterviewResponse = zod.object({
+  "source": zod.enum(['ai', 'local']),
+  "targetRole": zod.string(),
+  "targetCompany": zod.string(),
+  "overallScore": zod.number().int().min(evaluateMockInterviewResponseOverallScoreMin).max(evaluateMockInterviewResponseOverallScoreMax),
+  "clarityScore": zod.number().int().min(evaluateMockInterviewResponseClarityScoreMin).max(evaluateMockInterviewResponseClarityScoreMax),
+  "technicalAccuracy": zod.number().int().min(evaluateMockInterviewResponseTechnicalAccuracyMin).max(evaluateMockInterviewResponseTechnicalAccuracyMax),
+  "conceptsCovered": zod.array(zod.string().max(evaluateMockInterviewResponseConceptsCoveredItemMax)).max(evaluateMockInterviewResponseConceptsCoveredMax),
+  "missedConcepts": zod.array(zod.string().max(evaluateMockInterviewResponseMissedConceptsItemMax)).max(evaluateMockInterviewResponseMissedConceptsMax),
+  "summary": zod.string().max(evaluateMockInterviewResponseSummaryMax),
+  "tips": zod.array(zod.string().max(evaluateMockInterviewResponseTipsItemMax)).min(evaluateMockInterviewResponseTipsMin).max(evaluateMockInterviewResponseTipsMax)
 })
 
 
