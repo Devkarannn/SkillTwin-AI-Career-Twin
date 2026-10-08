@@ -1,4 +1,7 @@
 link of app :=             https://skill-twin-ai-career-twin--dev8karan.replit.app/
+
+
+
 Description: 
 Every year, millions of college students face massive placement anxiety. They read static interview guides online, but when they step into a real interview, they freeze—because reading tips is not practice, and personal coaching costs too much money.
 We surveyed college students, and 100% confirmed they desperately need an easy, free way to practice real interviews.
